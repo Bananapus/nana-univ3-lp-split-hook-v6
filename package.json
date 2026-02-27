@@ -1,0 +1,28 @@
+{
+  "name": "nana-lp-split-hook-v5",
+  "version": "1.0.0",
+  "description": "Use flattened versions (`npx hardhat flatten`) of UniswapV3 Periphery contracts because they unfortunately depend on OpenZeppelin Contracts 3.X, and we want to avoid version skew with the rest of this repo depending on OpenZeppelin Contracts 4.X",
+  "main": "index.js",
+  "directories": {
+    "lib": "lib",
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kyzooghost/uniswapv3-lp-split-hook.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/kyzooghost/uniswapv3-lp-split-hook/issues"
+  },
+  "homepage": "https://github.com/kyzooghost/uniswapv3-lp-split-hook#readme",
+  "dependencies": {
+    "@bananapus/permission-ids": "^0.0.17"
+  }
+}

@@ -25,6 +25,7 @@ import {INonfungiblePositionManager} from "@uniswap/v3-periphery-flattened/INonf
 import {IUniswapV3Factory} from "@uniswap/v3-core/interfaces/IUniswapV3Factory.sol";
 import {IUniswapV3Pool} from "@uniswap/v3-core/interfaces/IUniswapV3Pool.sol";
 import {TickMath} from "@uniswap/v3-core-patched/TickMath.sol";
+import {JBPermissionIds} from "@bananapus/permission-ids/JBPermissionIds.sol";
 import {IUniV3DeploymentSplitHook} from "./interfaces/IUniV3DeploymentSplitHook.sol";
 import {IREVDeployer} from "./interfaces/IREVDeployer.sol";
 
@@ -94,9 +95,6 @@ contract UniV3DeploymentSplitHook is IUniV3DeploymentSplitHook, IJBSplitHook, JB
 
     /// @notice Basis points constant (10000 = 100%)
     uint256 public constant BPS = 10000;
-
-    /// @notice Permission ID for deploying/configuring buyback pools (SET_BUYBACK_POOL from JBPermissionIds)
-    uint256 public constant SET_BUYBACK_POOL_PERMISSION = 25;
 
     /// @notice Uniswap V3 pool fee (10000 = 1% fee tier)
     uint24 public constant UNISWAP_V3_POOL_FEE = 10000;
@@ -612,8 +610,11 @@ contract UniV3DeploymentSplitHook is IUniV3DeploymentSplitHook, IJBSplitHook, JB
         uint256 minCashOutReturn
     ) external {
         // Access control: only the project owner or an authorized operator can deploy
-        address projectOwner = IJBDirectory(DIRECTORY).PROJECTS().ownerOf(projectId);
-        _requirePermissionFrom(projectOwner, projectId, SET_BUYBACK_POOL_PERMISSION);
+        _requirePermissionFrom({
+            account: IJBDirectory(DIRECTORY).PROJECTS().ownerOf(projectId),
+            projectId: projectId,
+            permissionId: JBPermissionIds.SET_BUYBACK_POOL
+        });
 
         // Cannot deploy if pool already exists
         if (poolOf[projectId][terminalToken] != address(0)) revert UniV3DeploymentSplitHook_PoolAlreadyDeployed();
