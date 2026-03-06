@@ -7,6 +7,7 @@ import "@rev-net/core-v6/script/helpers/RevnetCoreDeploymentLib.sol";
 import {Sphinx} from "@sphinx-labs/contracts/SphinxPlugin.sol";
 import {Script} from "forge-std/Script.sol";
 
+import {UniV3DeploymentSplitHook} from "../src/UniV3DeploymentSplitHook.sol";
 import {UniV3DeploymentSplitHookDeployer} from "../src/UniV3DeploymentSplitHookDeployer.sol";
 
 contract DeployScript is Script, Sphinx {
@@ -16,7 +17,8 @@ contract DeployScript is Script, Sphinx {
     /// @notice tracks the deployment of the revnet core contracts for the chain we are deploying to.
     RevnetCoreDeployment revnet;
 
-    /// @notice the salt that is used to deploy the contract.
+    /// @notice the salts used to deploy the contracts.
+    bytes32 HOOK_SALT = "UniV3DeploymentSplitHookV6";
     bytes32 DEPLOYER_SALT = "UniV3DeploymentSplitHookDeployerV6";
 
     /// @notice tracks the addresses that are required for the chain we are deploying to.
@@ -81,13 +83,15 @@ contract DeployScript is Script, Sphinx {
     }
 
     function deploy() public sphinx {
-        new UniV3DeploymentSplitHookDeployer{salt: DEPLOYER_SALT}(
+        UniV3DeploymentSplitHook hookImpl = new UniV3DeploymentSplitHook{salt: HOOK_SALT}(
             address(core.directory),
             address(core.tokens),
             factory,
             nonfungiblePositionManager,
             address(revnet.basic_deployer)
         );
+
+        new UniV3DeploymentSplitHookDeployer{salt: DEPLOYER_SALT}(hookImpl);
     }
 
     function _isDeployed(bytes32 salt, bytes memory creationCode, bytes memory arguments) internal view returns (bool) {

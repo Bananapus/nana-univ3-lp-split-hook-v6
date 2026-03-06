@@ -32,6 +32,18 @@ interface IUniV3DeploymentSplitHook {
     event FeeTokensClaimed(uint256 indexed projectId, address indexed beneficiary, uint256 amount);
 
     /**
+     * @notice Initialize per-instance config on a clone.
+     * @param initialOwner The owner of this clone instance.
+     * @param feeProjectId Project ID to receive LP fees.
+     * @param feePercent Percentage of LP fees to route to fee project (in basis points).
+     */
+    function initialize(
+        address initialOwner,
+        uint256 feeProjectId,
+        uint256 feePercent
+    ) external;
+
+    /**
      * @notice Check if project is in accumulation stage based on ruleset weight
      * @param _projectId The Juicebox project ID
      * @return isAccumulationStage True if weight > 0 (accumulation stage), false if weight == 0 (deployment stage)

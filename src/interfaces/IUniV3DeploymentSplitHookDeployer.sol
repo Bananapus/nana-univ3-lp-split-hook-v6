@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.0;
 
+import { UniV3DeploymentSplitHook } from "../UniV3DeploymentSplitHook.sol";
 import { IUniV3DeploymentSplitHook } from "./IUniV3DeploymentSplitHook.sol";
 
 interface IUniV3DeploymentSplitHookDeployer {
@@ -11,11 +12,7 @@ interface IUniV3DeploymentSplitHookDeployer {
         address caller
     );
 
-    function DIRECTORY() external view returns (address);
-    function TOKENS() external view returns (address);
-    function UNISWAP_V3_FACTORY() external view returns (address);
-    function UNISWAP_V3_NONFUNGIBLE_POSITION_MANAGER() external view returns (address);
-    function REV_DEPLOYER() external view returns (address);
+    function HOOK() external view returns (UniV3DeploymentSplitHook);
 
     function deployHookFor(
         uint256 feeProjectId,

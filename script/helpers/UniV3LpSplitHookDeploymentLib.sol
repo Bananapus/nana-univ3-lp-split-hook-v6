@@ -7,8 +7,10 @@ import {Vm} from "forge-std/Vm.sol";
 import {SphinxConstants, NetworkInfo} from "@sphinx-labs/contracts/SphinxConstants.sol";
 
 import {IUniV3DeploymentSplitHookDeployer} from "../../src/interfaces/IUniV3DeploymentSplitHookDeployer.sol";
+import {UniV3DeploymentSplitHook} from "../../src/UniV3DeploymentSplitHook.sol";
 
 struct UniV3LpSplitHookDeployment {
+    UniV3DeploymentSplitHook hook;
     IUniV3DeploymentSplitHookDeployer deployer;
 }
 
@@ -43,6 +45,11 @@ library UniV3LpSplitHookDeploymentLib {
         view
         returns (UniV3LpSplitHookDeployment memory deployment)
     {
+        deployment.hook = UniV3DeploymentSplitHook(
+            _getDeploymentAddress(
+                path, "nana-univ3-lp-split-hook-v6", network_name, "UniV3DeploymentSplitHook"
+            )
+        );
         deployment.deployer = IUniV3DeploymentSplitHookDeployer(
             _getDeploymentAddress(
                 path, "nana-univ3-lp-split-hook-v6", network_name, "UniV3DeploymentSplitHookDeployer"
