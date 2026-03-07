@@ -15,6 +15,7 @@
     "coverage": "forge coverage --report lcov --report summary"
   },
   "dependencies": {
+    "@bananapus/address-registry-v6": "^0.0.3",
     "@bananapus/721-hook-v6": "^0.0.7",
     "@bananapus/buyback-hook-v6": "^0.0.5",
     "@bananapus/core-v6": "^0.0.5",

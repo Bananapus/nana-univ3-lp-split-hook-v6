@@ -91,7 +91,8 @@ contract DeployerTest is Test {
         assertEq(addressRegistry.deployerOf(address(hook2)), address(deployer), "hook2 not registered");
     }
 
-    // ─── Hook is properly initialized ────────────────────────────────
+    // ─── Hook is properly initialized
+    // ────────────────────────────────
 
     function test_deployHookFor_initializesHook() public {
         vm.prank(caller);
@@ -103,7 +104,8 @@ contract DeployerTest is Test {
         assertEq(concreteHook.FEE_PERCENT(), FEE_PERCENT, "feePercent not set");
     }
 
-    // ─── HookDeployed event is emitted ───────────────────────────────
+    // ─── HookDeployed event is emitted
+    // ───────────────────────────────
 
     function test_deployHookFor_emitsHookDeployedEvent() public {
         vm.recordLogs();
@@ -125,13 +127,15 @@ contract DeployerTest is Test {
         assertTrue(found, "HookDeployed event not emitted");
     }
 
-    // ─── ADDRESS_REGISTRY getter works ───────────────────────────────
+    // ─── ADDRESS_REGISTRY getter works
+    // ───────────────────────────────
 
     function test_ADDRESS_REGISTRY_returnsRegistry() public view {
         assertEq(address(deployer.ADDRESS_REGISTRY()), address(addressRegistry));
     }
 
-    // ─── HOOK getter works ───────────────────────────────────────────
+    // ─── HOOK getter works
+    // ───────────────────────────────────────────
 
     function test_HOOK_returnsImplementation() public view {
         assertEq(address(deployer.HOOK()), address(hookImpl));

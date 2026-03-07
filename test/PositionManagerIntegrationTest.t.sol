@@ -115,8 +115,7 @@ contract PositionManagerIntegrationTest is LPSplitHookV4TestBase {
         // Fees should have been routed (hook balance may not increase because fees
         // get forwarded to fee project + original project, but the terminal's
         // pay/addToBalance counts should reflect routing).
-        bool feesProcessed =
-            terminal.payCallCount() > 0 || terminal.addToBalanceCallCount() > 0;
+        bool feesProcessed = terminal.payCallCount() > 0 || terminal.addToBalanceCallCount() > 0;
         assertTrue(feesProcessed, "Fee routing should call pay or addToBalance");
     }
 
@@ -130,11 +129,9 @@ contract PositionManagerIntegrationTest is LPSplitHookV4TestBase {
 
         // Record total supply across hook + PM + terminal (terminal may receive cash-out tokens).
         uint256 totalProjectBefore = projectToken.balanceOf(address(hook))
-            + projectToken.balanceOf(address(positionManager))
-            + projectToken.balanceOf(address(terminal));
+            + projectToken.balanceOf(address(positionManager)) + projectToken.balanceOf(address(terminal));
         uint256 totalTermBefore = terminalToken.balanceOf(address(hook))
-            + terminalToken.balanceOf(address(positionManager))
-            + terminalToken.balanceOf(address(terminal));
+            + terminalToken.balanceOf(address(positionManager)) + terminalToken.balanceOf(address(terminal));
 
         vm.startPrank(address(hook));
         projectToken.approve(address(positionManager), type(uint256).max);
@@ -145,11 +142,9 @@ contract PositionManagerIntegrationTest is LPSplitHookV4TestBase {
         hook.deployPool(PROJECT_ID, address(terminalToken), 0, 0, 0);
 
         uint256 totalProjectAfter = projectToken.balanceOf(address(hook))
-            + projectToken.balanceOf(address(positionManager))
-            + projectToken.balanceOf(address(terminal));
+            + projectToken.balanceOf(address(positionManager)) + projectToken.balanceOf(address(terminal));
         uint256 totalTermAfter = terminalToken.balanceOf(address(hook))
-            + terminalToken.balanceOf(address(positionManager))
-            + terminalToken.balanceOf(address(terminal));
+            + terminalToken.balanceOf(address(positionManager)) + terminalToken.balanceOf(address(terminal));
 
         // Project tokens may decrease (burned by _handleLeftoverTokens), but never increase.
         assertLe(totalProjectAfter, totalProjectBefore, "Project tokens should not be created");
@@ -185,8 +180,7 @@ contract PositionManagerIntegrationTest is LPSplitHookV4TestBase {
         hook.rebalanceLiquidity(PROJECT_ID, address(terminalToken), 0, 0, 0, 0);
 
         // Verify fees were routed.
-        bool feesRouted =
-            (terminal.payCallCount() > payBefore) || (terminal.addToBalanceCallCount() > addBefore);
+        bool feesRouted = (terminal.payCallCount() > payBefore) || (terminal.addToBalanceCallCount() > addBefore);
         assertTrue(feesRouted, "Fees from old position should be routed during rebalance");
 
         // Verify new position was created.
@@ -200,7 +194,7 @@ contract PositionManagerIntegrationTest is LPSplitHookV4TestBase {
     ///         SWEEP should return the unused portion to the hook.
     function test_Deploy_PartialUsage_SweepReturnsLeftover() public {
         // Configure PM to only use 80% of provided amounts.
-        positionManager.setUsagePercent(8_000);
+        positionManager.setUsagePercent(8000);
 
         _accumulateTokens(PROJECT_ID, 100e18);
 
@@ -221,7 +215,8 @@ contract PositionManagerIntegrationTest is LPSplitHookV4TestBase {
         // should be some swept back.)
     }
 
-    // ─── Helper ──────────────────────────────────────────────────────
+    // ─── Helper
+    // ──────────────────────────────────────────────────────
 
     function _sortTokens(address tokenA, address tokenB) internal pure returns (address token0, address token1) {
         return tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
