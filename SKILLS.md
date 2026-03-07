@@ -9,7 +9,7 @@ Juicebox reserved-token split hook that accumulates project tokens, deploys a Un
 | Contract | Role |
 |----------|------|
 | `UniV4DeploymentSplitHook` | Core split hook. Implements `IJBSplitHook.processSplitWith` to accumulate or burn tokens. Manages V4 pool creation, LP position minting, fee collection, and liquidity rebalancing. Inherits `JBPermissioned`, `Ownable`. Deployed as clones via factory. |
-| `UniV4DeploymentSplitHookDeployer` | Factory that deploys hook clones via `LibClone` (Solady). Supports CREATE2 deterministic deployment. Initializes clones with `feeProjectId` and `feePercent`. |
+| `UniV4DeploymentSplitHookDeployer` | Factory that deploys hook clones via `LibClone` (Solady). Supports CREATE2 deterministic deployment. Initializes clones with `feeProjectId` and `feePercent`. Registers each deployed clone in `JBAddressRegistry` so frontends can verify the deployer. |
 
 ## Key Functions
 
@@ -50,7 +50,7 @@ Juicebox reserved-token split hook that accumulates project tokens, deploys a Un
 
 | Function | What it does |
 |----------|-------------|
-| `UniV4DeploymentSplitHookDeployer.deployHookFor(feeProjectId, feePercent, salt)` | Deploys a new hook clone. Salt is scoped to `msg.sender` via `keccak256(abi.encode(msg.sender, salt))`. Pass `bytes32(0)` for plain CREATE. Calls `initialize()` on the new clone. |
+| `UniV4DeploymentSplitHookDeployer.deployHookFor(feeProjectId, feePercent, salt)` | Deploys a new hook clone. Salt is scoped to `msg.sender` via `keccak256(abi.encode(msg.sender, salt))`. Pass `bytes32(0)` for plain CREATE. Calls `initialize()` on the new clone. Registers the clone in `JBAddressRegistry` (CREATE via nonce, CREATE2 via salt+bytecode). |
 
 ### Internal Pricing
 
@@ -73,6 +73,7 @@ Juicebox reserved-token split hook that accumulates project tokens, deploys a Un
 | `@uniswap/v4-periphery` | `IPositionManager`, `Actions`, `LiquidityAmounts` | V4 position management: mint, modify, burn, collect |
 | `@openzeppelin/contracts` | `IERC20`, `IERC20Metadata`, `SafeERC20`, `Ownable` | Token operations, ownership |
 | `@prb/math` | `mulDiv`, `sqrt` | Overflow-safe arithmetic for sqrtPriceX96 calculations |
+| `@bananapus/address-registry-v6` | `IJBAddressRegistry` | On-chain registry mapping deployed hooks to their deployer contract |
 | `solady` | `LibClone` | Clone factory for deploying hook instances |
 
 ## Key Types

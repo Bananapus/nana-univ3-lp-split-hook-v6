@@ -9,7 +9,12 @@ import {Actions} from "@uniswap/v4-periphery/src/libraries/Actions.sol";
 import {PositionInfo} from "@uniswap/v4-periphery/src/libraries/PositionInfoLibrary.sol";
 
 /// @notice Mock PositionManager for testing UniV4DeploymentSplitHook
-/// @dev Simulates modifyLiquidities with MINT_POSITION/BURN_POSITION/DECREASE_LIQUIDITY/TAKE_PAIR/SETTLE/SWEEP
+/// @dev Simulates modifyLiquidities with realistic token flows:
+///      - MINT_POSITION records how many tokens the position requires
+///      - SETTLE pulls tokens from the caller (enforcing approval + balance)
+///      - BURN_POSITION / DECREASE_LIQUIDITY track owed amounts for TAKE_PAIR
+///      - TAKE_PAIR transfers owed + fee amounts to the recipient
+///      - SWEEP returns any leftover tokens held by this contract
 contract MockPositionManager {
     using PoolIdLibrary for PoolKey;
     using CurrencyLibrary for Currency;
@@ -24,6 +29,8 @@ contract MockPositionManager {
         int24 tickLower;
         int24 tickUpper;
         uint128 liquidity;
+        uint256 amount0Locked; // tokens locked in the position
+        uint256 amount1Locked; // tokens locked in the position
         bool exists;
     }
 
@@ -42,6 +49,23 @@ contract MockPositionManager {
     uint256 public burnCallCount;
     uint256 public decreaseLiquidityCallCount;
     uint256 public lastMintTokenId;
+
+    // Tokens locked in the "pool" (simulates PoolManager holding them).
+    // SWEEP should not return these — only excess above poolLocked is sweepable.
+    mapping(address token => uint256) public poolLocked;
+
+    // --- Per-modifyLiquidities transient state ---
+    // Tracks amounts owed to the caller after BURN/DECREASE, consumed by TAKE_PAIR.
+    uint256 private _pendingOwed0;
+    uint256 private _pendingOwed1;
+    // Track the currencies for pending owed amounts.
+    Currency private _pendingCurrency0;
+    Currency private _pendingCurrency1;
+    // Amounts the mint expects to settle (consumed by SETTLE).
+    uint256 private _pendingSettle0;
+    uint256 private _pendingSettle1;
+    Currency private _settleCurrency0;
+    Currency private _settleCurrency1;
 
     function setUsagePercent(uint256 percent) external {
         usagePercent = percent;
@@ -76,7 +100,7 @@ contract MockPositionManager {
     }
 
     /// @notice IPositionManager.modifyLiquidities — the main entry point
-    /// @dev Decodes actions and params, simulates behavior
+    /// @dev Decodes actions and params, simulates behavior with realistic token flows.
     function modifyLiquidities(
         bytes calldata unlockData,
         uint256 /* deadline */
@@ -84,6 +108,12 @@ contract MockPositionManager {
         external
         payable
     {
+        // Reset transient state
+        _pendingOwed0 = 0;
+        _pendingOwed1 = 0;
+        _pendingSettle0 = 0;
+        _pendingSettle1 = 0;
+
         (bytes memory actions, bytes[] memory params) = abi.decode(unlockData, (bytes, bytes[]));
 
         for (uint256 i = 0; i < actions.length; i++) {
@@ -115,7 +145,7 @@ contract MockPositionManager {
             uint256 liquidity,
             uint128 amount0Max,
             uint128 amount1Max,
-            address owner,
+            address posOwner,
             /* hookData */
         ) = abi.decode(data, (PoolKey, int24, int24, uint256, uint128, uint128, address, bytes));
 
@@ -128,11 +158,26 @@ contract MockPositionManager {
         uint256 amount1Used = (uint256(amount1Max) * usagePercent) / 10_000;
 
         _positions[tokenId] = Position({
-            poolKey: key, tickLower: tickLower, tickUpper: tickUpper, liquidity: uint128(liquidity), exists: true
+            poolKey: key,
+            tickLower: tickLower,
+            tickUpper: tickUpper,
+            liquidity: uint128(liquidity),
+            amount0Locked: amount0Used,
+            amount1Locked: amount1Used,
+            exists: true
         });
 
-        // Transfer tokens from caller (settled via SETTLE actions that follow)
-        // In mock, we pull directly since SETTLE is handled separately
+        // Record what SETTLE needs to pull from the caller.
+        _pendingSettle0 = amount0Used;
+        _pendingSettle1 = amount1Used;
+        _settleCurrency0 = key.currency0;
+        _settleCurrency1 = key.currency1;
+
+        // Lock the used amounts in the "pool" so SWEEP doesn't return them.
+        address token0 = Currency.unwrap(key.currency0);
+        address token1 = Currency.unwrap(key.currency1);
+        poolLocked[token0] += amount0Used;
+        poolLocked[token1] += amount1Used;
     }
 
     function _handleBurn(bytes memory data) internal {
@@ -146,7 +191,23 @@ contract MockPositionManager {
         Position storage pos = _positions[tokenId];
         require(pos.exists, "Position does not exist");
 
-        // Position is fully removed
+        // Unlock the locked amounts from the "pool" back to PM's sweepable balance.
+        address token0 = Currency.unwrap(pos.poolKey.currency0);
+        address token1 = Currency.unwrap(pos.poolKey.currency1);
+        poolLocked[token0] -= pos.amount0Locked;
+        poolLocked[token1] -= pos.amount1Locked;
+
+        // The underlying tokens + any fees become owed to the caller via TAKE_PAIR.
+        _pendingOwed0 += pos.amount0Locked + collectableAmount0[tokenId];
+        _pendingOwed1 += pos.amount1Locked + collectableAmount1[tokenId];
+        _pendingCurrency0 = pos.poolKey.currency0;
+        _pendingCurrency1 = pos.poolKey.currency1;
+
+        // Clear fees since they're included in owed amounts.
+        collectableAmount0[tokenId] = 0;
+        collectableAmount1[tokenId] = 0;
+
+        // Position is fully removed.
         pos.liquidity = 0;
         delete _positions[tokenId];
     }
@@ -164,49 +225,78 @@ contract MockPositionManager {
         Position storage pos = _positions[tokenId];
         require(pos.exists, "Position does not exist");
 
+        _pendingCurrency0 = pos.poolKey.currency0;
+        _pendingCurrency1 = pos.poolKey.currency1;
+
+        address token0 = Currency.unwrap(pos.poolKey.currency0);
+        address token1 = Currency.unwrap(pos.poolKey.currency1);
+
         if (liquidity > 0) {
+            // Calculate the pro-rata share of locked tokens being removed.
+            uint256 fraction0;
+            uint256 fraction1;
+            if (pos.liquidity > 0) {
+                fraction0 = (pos.amount0Locked * uint128(liquidity)) / pos.liquidity;
+                fraction1 = (pos.amount1Locked * uint128(liquidity)) / pos.liquidity;
+            }
+            _pendingOwed0 += fraction0;
+            _pendingOwed1 += fraction1;
+            pos.amount0Locked -= fraction0;
+            pos.amount1Locked -= fraction1;
+
+            // Unlock the removed fraction from the pool.
+            poolLocked[token0] -= fraction0;
+            poolLocked[token1] -= fraction1;
+
             if (uint128(liquidity) >= pos.liquidity) {
                 pos.liquidity = 0;
             } else {
                 pos.liquidity -= uint128(liquidity);
             }
         }
-        // When liquidity == 0, this is a fee collection operation
-        // Fees are distributed via TAKE_PAIR
+
+        // Fees are always owed regardless of liquidity amount (0 = collect-only).
+        _pendingOwed0 += collectableAmount0[tokenId];
+        _pendingOwed1 += collectableAmount1[tokenId];
+        collectableAmount0[tokenId] = 0;
+        collectableAmount1[tokenId] = 0;
     }
 
     function _handleTakePair(bytes memory data) internal {
         (Currency currency0, Currency currency1, address recipient) = abi.decode(data, (Currency, Currency, address));
 
-        // For fee collection: transfer collectable amounts
-        // Find the relevant tokenId — use lastMintTokenId as proxy
-        uint256 fee0 = collectableAmount0[lastMintTokenId];
-        uint256 fee1 = collectableAmount1[lastMintTokenId];
+        uint256 owed0 = _pendingOwed0;
+        uint256 owed1 = _pendingOwed1;
+        _pendingOwed0 = 0;
+        _pendingOwed1 = 0;
 
-        if (fee0 > 0) {
+        // Transfer owed amounts to the recipient.
+        if (owed0 > 0) {
             if (currency0.isAddressZero()) {
-                (bool success,) = recipient.call{value: fee0}("");
+                (bool success,) = recipient.call{value: owed0}("");
                 require(success, "ETH transfer failed");
             } else {
                 address token0 = Currency.unwrap(currency0);
-                if (IERC20(token0).balanceOf(address(this)) >= fee0) {
-                    IERC20(token0).transfer(recipient, fee0);
+                uint256 bal = IERC20(token0).balanceOf(address(this));
+                uint256 toSend = owed0 > bal ? bal : owed0;
+                if (toSend > 0) {
+                    IERC20(token0).transfer(recipient, toSend);
                 }
             }
-            collectableAmount0[lastMintTokenId] = 0;
         }
 
-        if (fee1 > 0) {
+        if (owed1 > 0) {
             if (currency1.isAddressZero()) {
-                (bool success,) = recipient.call{value: fee1}("");
+                (bool success,) = recipient.call{value: owed1}("");
                 require(success, "ETH transfer failed");
             } else {
                 address token1 = Currency.unwrap(currency1);
-                if (IERC20(token1).balanceOf(address(this)) >= fee1) {
-                    IERC20(token1).transfer(recipient, fee1);
+                uint256 bal = IERC20(token1).balanceOf(address(this));
+                uint256 toSend = owed1 > bal ? bal : owed1;
+                if (toSend > 0) {
+                    IERC20(token1).transfer(recipient, toSend);
                 }
             }
-            collectableAmount1[lastMintTokenId] = 0;
         }
     }
 
@@ -214,15 +304,35 @@ contract MockPositionManager {
         (Currency currency, uint256 amount, bool payerIsUser) = abi.decode(data, (Currency, uint256, bool));
 
         if (payerIsUser) {
-            // Pull tokens from msg.sender (the hook contract)
+            // Determine how much to pull: use the pending settle amount if available,
+            // otherwise fall back to allowance-based (backward compat).
+            uint256 toPull;
+            if (Currency.unwrap(currency) == Currency.unwrap(_settleCurrency0) && _pendingSettle0 > 0) {
+                toPull = _pendingSettle0;
+                _pendingSettle0 = 0;
+            } else if (Currency.unwrap(currency) == Currency.unwrap(_settleCurrency1) && _pendingSettle1 > 0) {
+                toPull = _pendingSettle1;
+                _pendingSettle1 = 0;
+            }
+
             if (!currency.isAddressZero()) {
                 address token = Currency.unwrap(currency);
-                uint256 allowance = IERC20(token).allowance(msg.sender, address(this));
-                if (allowance > 0) {
+                if (toPull > 0) {
+                    // Enforce that the caller has approved and has sufficient balance.
+                    uint256 allowance = IERC20(token).allowance(msg.sender, address(this));
+                    require(allowance >= toPull, "MockPM: insufficient allowance for settle");
                     uint256 bal = IERC20(token).balanceOf(msg.sender);
-                    uint256 transferAmount = allowance < bal ? allowance : bal;
-                    if (transferAmount > 0) {
-                        IERC20(token).transferFrom(msg.sender, address(this), transferAmount);
+                    require(bal >= toPull, "MockPM: insufficient balance for settle");
+                    IERC20(token).transferFrom(msg.sender, address(this), toPull);
+                } else {
+                    // Fallback: pull whatever is approved (for flows that don't set pending).
+                    uint256 allowance = IERC20(token).allowance(msg.sender, address(this));
+                    if (allowance > 0) {
+                        uint256 bal = IERC20(token).balanceOf(msg.sender);
+                        uint256 transferAmount = allowance < bal ? allowance : bal;
+                        if (transferAmount > 0) {
+                            IERC20(token).transferFrom(msg.sender, address(this), transferAmount);
+                        }
                     }
                 }
             }
@@ -235,16 +345,21 @@ contract MockPositionManager {
         (Currency currency, address to) = abi.decode(data, (Currency, address));
 
         if (currency.isAddressZero()) {
+            // For native ETH, pool-locked ETH is tracked at address(0).
             uint256 balance = address(this).balance;
-            if (balance > 0) {
-                (bool success,) = to.call{value: balance}("");
+            uint256 locked = poolLocked[address(0)];
+            uint256 sweepable = balance > locked ? balance - locked : 0;
+            if (sweepable > 0) {
+                (bool success,) = to.call{value: sweepable}("");
                 require(success, "ETH sweep failed");
             }
         } else {
             address token = Currency.unwrap(currency);
             uint256 balance = IERC20(token).balanceOf(address(this));
-            if (balance > 0) {
-                IERC20(token).transfer(to, balance);
+            uint256 locked = poolLocked[token];
+            uint256 sweepable = balance > locked ? balance - locked : 0;
+            if (sweepable > 0) {
+                IERC20(token).transfer(to, sweepable);
             }
         }
     }

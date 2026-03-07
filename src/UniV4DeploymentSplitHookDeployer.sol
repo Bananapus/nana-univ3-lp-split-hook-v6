@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
+import {IJBAddressRegistry} from "@bananapus/address-registry-v6/src/interfaces/IJBAddressRegistry.sol";
 import {LibClone} from "solady/src/utils/LibClone.sol";
 
 import {UniV4DeploymentSplitHook} from "./UniV4DeploymentSplitHook.sol";
@@ -15,16 +16,28 @@ contract UniV4DeploymentSplitHookDeployer is IUniV4DeploymentSplitHookDeployer {
     // --------------- public immutable stored properties ---------------- //
     //*********************************************************************//
 
+    /// @notice A registry which stores references to contracts and their deployers.
+    IJBAddressRegistry public immutable override ADDRESS_REGISTRY;
+
     /// @notice The hook implementation that all clones delegate to.
     UniV4DeploymentSplitHook public immutable override HOOK;
+
+    //*********************************************************************//
+    // ----------------------- internal properties ----------------------- //
+    //*********************************************************************//
+
+    /// @notice This contract's current nonce, used for the Juicebox address registry.
+    uint256 internal _nonce;
 
     //*********************************************************************//
     // -------------------------- constructor ---------------------------- //
     //*********************************************************************//
 
     /// @param hook The hook implementation contract.
-    constructor(UniV4DeploymentSplitHook hook) {
+    /// @param addressRegistry A registry which stores references to contracts and their deployers.
+    constructor(UniV4DeploymentSplitHook hook, IJBAddressRegistry addressRegistry) {
         HOOK = hook;
+        ADDRESS_REGISTRY = addressRegistry;
     }
 
     //*********************************************************************//
@@ -56,5 +69,17 @@ contract UniV4DeploymentSplitHookDeployer is IUniV4DeploymentSplitHookDeployer {
         IUniV4DeploymentSplitHook(address(hook)).initialize(msg.sender, feeProjectId, feePercent);
 
         emit HookDeployed(feeProjectId, feePercent, hook, msg.sender);
+
+        // Increment the nonce.
+        ++_nonce;
+
+        // Add the hook to the address registry. This contract's nonce starts at 1.
+        salt == bytes32(0)
+            ? ADDRESS_REGISTRY.registerAddress({deployer: address(this), nonce: _nonce})
+            : ADDRESS_REGISTRY.registerAddress({
+                deployer: address(this),
+                salt: keccak256(abi.encode(msg.sender, salt)),
+                bytecode: LibClone.initCode(address(HOOK))
+            });
     }
 }
