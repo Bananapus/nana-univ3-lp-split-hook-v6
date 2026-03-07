@@ -1,33 +1,33 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
-import {LPSplitHookTestBase} from "./TestBase.sol";
-import {UniV3DeploymentSplitHook} from "../src/UniV3DeploymentSplitHook.sol";
-import {IUniV3DeploymentSplitHook} from "../src/interfaces/IUniV3DeploymentSplitHook.sol";
+import {LPSplitHookV4TestBase} from "./TestBaseV4.sol";
+import {UniV4DeploymentSplitHook} from "../src/UniV4DeploymentSplitHook.sol";
+import {IUniV4DeploymentSplitHook} from "../src/interfaces/IUniV4DeploymentSplitHook.sol";
 import {JBPermissioned} from "@bananapus/core/abstract/JBPermissioned.sol";
 import {JBSplitHookContext} from "@bananapus/core/structs/JBSplitHookContext.sol";
 
-/// @notice Tests for UniV3DeploymentSplitHook deployment stage behavior.
+/// @notice Tests for UniV4DeploymentSplitHook deployment stage behavior.
 /// @dev Covers deployPool access control, processSplitWith accumulation/burning, leftovers, and revert conditions.
-contract DeploymentStageTest is LPSplitHookTestBase {
+contract DeploymentStageTest is LPSplitHookV4TestBase {
     function setUp() public override {
         super.setUp();
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // 1. deployPool — creates pool and sets poolOf
+    // 1. deployPool — creates pool and sets tokenIdOf
     // ─────────────────────────────────────────────────────────────────────
 
     /// @notice After accumulating tokens, the project owner calls deployPool which should create
-    ///         the pool and set poolOf to a nonzero address.
+    ///         the pool and set tokenIdOf to a nonzero value.
     function test_DeployPool_CreatesPool() public {
         _accumulateTokens(PROJECT_ID, 100e18);
 
         vm.prank(owner);
         hook.deployPool(PROJECT_ID, address(terminalToken), 0, 0, 0);
 
-        address pool = hook.poolOf(PROJECT_ID, address(terminalToken));
-        assertTrue(pool != address(0), "poolOf should be nonzero after deployPool");
+        uint256 tokenId = hook.tokenIdOf(PROJECT_ID, address(terminalToken));
+        assertTrue(tokenId != 0, "tokenIdOf should be nonzero after deployPool");
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -50,33 +50,32 @@ contract DeploymentStageTest is LPSplitHookTestBase {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // 3. deployPool — mints LP position via NFPM
+    // 3. deployPool — mints LP position via PositionManager
     // ─────────────────────────────────────────────────────────────────────
 
-    /// @notice deployPool should call NFPM.mint exactly once to create the LP position.
+    /// @notice deployPool should call PositionManager.modifyLiquidities to create the LP position.
     function test_DeployPool_MintsLPPosition() public {
         _accumulateTokens(PROJECT_ID, 100e18);
 
         vm.prank(owner);
         hook.deployPool(PROJECT_ID, address(terminalToken), 0, 0, 0);
 
-        assertEq(nfpm.mintCallCount(), 1, "NFPM mint should be called once");
+        assertEq(positionManager.mintCallCount(), 1, "PositionManager mint should be called once");
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // 4. deployPool — sets tokenIdForPool
+    // 4. deployPool — sets tokenIdOf
     // ─────────────────────────────────────────────────────────────────────
 
-    /// @notice After deployment, tokenIdForPool for the created pool should be nonzero.
+    /// @notice After deployment, tokenIdOf for the project/terminalToken should be nonzero.
     function test_DeployPool_SetsTokenId() public {
         _accumulateTokens(PROJECT_ID, 100e18);
 
         vm.prank(owner);
         hook.deployPool(PROJECT_ID, address(terminalToken), 0, 0, 0);
 
-        address pool = hook.poolOf(PROJECT_ID, address(terminalToken));
-        uint256 tokenId = hook.tokenIdForPool(pool);
-        assertTrue(tokenId != 0, "tokenIdForPool should be nonzero after deployPool");
+        uint256 tokenId = hook.tokenIdOf(PROJECT_ID, address(terminalToken));
+        assertTrue(tokenId != 0, "tokenIdOf should be nonzero after deployPool");
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -102,9 +101,9 @@ contract DeploymentStageTest is LPSplitHookTestBase {
         _accumulateTokens(PROJECT_ID, 100e18);
 
         // Check indexed params: projectId (topic1) and terminalToken (topic2)
-        // The pool address (topic3) is unknown ahead of time, so we only check the first two indexed params.
+        // The poolId (topic3) is unknown ahead of time, so we only check the first two indexed params.
         vm.expectEmit(true, true, false, false);
-        emit IUniV3DeploymentSplitHook.ProjectDeployed(PROJECT_ID, address(terminalToken), address(0));
+        emit IUniV4DeploymentSplitHook.ProjectDeployed(PROJECT_ID, address(terminalToken), bytes32(0));
 
         vm.prank(owner);
         hook.deployPool(PROJECT_ID, address(terminalToken), 0, 0, 0);
@@ -116,7 +115,7 @@ contract DeploymentStageTest is LPSplitHookTestBase {
 
     /// @notice deployPool reverts with NoTokensAccumulated when no tokens have been accumulated.
     function test_DeployPool_RevertsIf_NoTokens() public {
-        vm.expectRevert(UniV3DeploymentSplitHook.UniV3DeploymentSplitHook_NoTokensAccumulated.selector);
+        vm.expectRevert(UniV4DeploymentSplitHook.UniV4DeploymentSplitHook_NoTokensAccumulated.selector);
         vm.prank(owner);
         hook.deployPool(PROJECT_ID, address(terminalToken), 0, 0, 0);
     }
@@ -134,7 +133,7 @@ contract DeploymentStageTest is LPSplitHookTestBase {
         // Accumulate more tokens so NoTokensAccumulated wouldn't fire
         _accumulateTokens(PROJECT_ID, 50e18);
 
-        vm.expectRevert(UniV3DeploymentSplitHook.UniV3DeploymentSplitHook_PoolAlreadyDeployed.selector);
+        vm.expectRevert(UniV4DeploymentSplitHook.UniV4DeploymentSplitHook_PoolAlreadyDeployed.selector);
         vm.prank(owner);
         hook.deployPool(PROJECT_ID, address(terminalToken), 0, 0, 0);
     }
@@ -151,7 +150,7 @@ contract DeploymentStageTest is LPSplitHookTestBase {
         // Use an address with no terminal configured
         address invalidToken = makeAddr("invalidToken");
 
-        vm.expectRevert(UniV3DeploymentSplitHook.UniV3DeploymentSplitHook_InvalidTerminalToken.selector);
+        vm.expectRevert(UniV4DeploymentSplitHook.UniV4DeploymentSplitHook_InvalidTerminalToken.selector);
         vm.prank(owner);
         hook.deployPool(PROJECT_ID, invalidToken, 0, 0, 0);
     }
@@ -177,8 +176,8 @@ contract DeploymentStageTest is LPSplitHookTestBase {
         );
 
         // Pool should NOT exist (no auto-deploy)
-        address pool = hook.poolOf(PROJECT_ID, address(terminalToken));
-        assertEq(pool, address(0), "poolOf should remain address(0) -- no auto-deploy");
+        uint256 tokenId = hook.tokenIdOf(PROJECT_ID, address(terminalToken));
+        assertEq(tokenId, 0, "tokenIdOf should remain 0 -- no auto-deploy");
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -246,14 +245,14 @@ contract DeploymentStageTest is LPSplitHookTestBase {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // 13. deployPool — handles leftover tokens when NFPM uses less than 100%
+    // 13. deployPool — handles leftover tokens when PositionManager uses less than 100%
     // ─────────────────────────────────────────────────────────────────────
 
-    /// @notice When NFPM uses less than 100% of desired amounts (e.g., 80%), leftover project
+    /// @notice When PositionManager uses less than 100% of desired amounts (e.g., 80%), leftover project
     ///         tokens should be burned via the controller.
     function test_DeployPool_HandlesBurnOfLeftovers() public {
-        // Set NFPM to only use 80% of desired amounts
-        nfpm.setUsagePercent(8000);
+        // Set PositionManager to only use 80% of desired amounts
+        positionManager.setUsagePercent(8000);
 
         _accumulateTokens(PROJECT_ID, 100e18);
 
@@ -276,9 +275,9 @@ contract DeploymentStageTest is LPSplitHookTestBase {
         // Deploy pool as owner
         _accumulateAndDeploy(PROJECT_ID, 100e18);
 
-        // Record pool address and NFPM mint count after first deploy
-        address firstPool = hook.poolOf(PROJECT_ID, address(terminalToken));
-        uint256 mintCountAfterDeploy = nfpm.mintCallCount();
+        // Record tokenId and mint count after first deploy
+        uint256 firstTokenId = hook.tokenIdOf(PROJECT_ID, address(terminalToken));
+        uint256 mintCountAfterDeploy = positionManager.mintCallCount();
         uint256 burnCountAfterDeploy = controller.burnCallCount();
 
         // Send new tokens and call processSplitWith
@@ -290,12 +289,12 @@ contract DeploymentStageTest is LPSplitHookTestBase {
         vm.prank(address(controller));
         hook.processSplitWith(context);
 
-        // Pool address should remain the same (no second pool created)
-        address poolAfter = hook.poolOf(PROJECT_ID, address(terminalToken));
-        assertEq(poolAfter, firstPool, "pool address should not change after second processSplitWith");
+        // tokenId should remain the same (no second pool created)
+        uint256 tokenIdAfter = hook.tokenIdOf(PROJECT_ID, address(terminalToken));
+        assertEq(tokenIdAfter, firstTokenId, "tokenId should not change after second processSplitWith");
 
-        // NFPM.mint should NOT have been called again
-        assertEq(nfpm.mintCallCount(), mintCountAfterDeploy, "NFPM mint should not be called again");
+        // PositionManager.mint should NOT have been called again
+        assertEq(positionManager.mintCallCount(), mintCountAfterDeploy, "PositionManager mint should not be called again");
 
         // But burn should have been called for the new tokens
         assertTrue(
@@ -345,7 +344,7 @@ contract DeploymentStageTest is LPSplitHookTestBase {
         vm.prank(operator);
         hook.deployPool(PROJECT_ID, address(terminalToken), 0, 0, 0);
 
-        address pool = hook.poolOf(PROJECT_ID, address(terminalToken));
-        assertTrue(pool != address(0), "poolOf should be nonzero after deployPool by permitted operator");
+        uint256 tokenId = hook.tokenIdOf(PROJECT_ID, address(terminalToken));
+        assertTrue(tokenId != 0, "tokenIdOf should be nonzero after deployPool by permitted operator");
     }
 }
