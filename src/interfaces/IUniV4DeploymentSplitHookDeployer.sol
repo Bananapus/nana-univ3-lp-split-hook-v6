@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
+import {IJBAddressRegistry} from "@bananapus/address-registry-v6/src/interfaces/IJBAddressRegistry.sol";
+
 import {UniV4DeploymentSplitHook} from "../UniV4DeploymentSplitHook.sol";
 import {IUniV4DeploymentSplitHook} from "./IUniV4DeploymentSplitHook.sol";
 
@@ -8,6 +10,8 @@ interface IUniV4DeploymentSplitHookDeployer {
     event HookDeployed(
         uint256 indexed feeProjectId, uint256 feePercent, IUniV4DeploymentSplitHook hook, address caller
     );
+
+    function ADDRESS_REGISTRY() external view returns (IJBAddressRegistry);
 
     function HOOK() external view returns (UniV4DeploymentSplitHook);
 

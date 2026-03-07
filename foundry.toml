@@ -9,6 +9,7 @@ remappings = [
     "forge-std/=lib/forge-std/src/",
     "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
     "@bananapus/core/=lib/nana-core/src/",
+    "@bananapus/address-registry-v6/=node_modules/@bananapus/address-registry-v6/",
     "@bananapus/core-v6/=node_modules/@bananapus/core-v6/",
     "@bananapus/permission-ids/=node_modules/@bananapus/permission-ids-v6/src/",
     "@bananapus/permission-ids-v6/=node_modules/@bananapus/permission-ids-v6/",
