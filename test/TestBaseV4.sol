@@ -24,7 +24,6 @@ import {
     MockJBTokens,
     MockJBPrices,
     MockJBTerminalStore,
-    MockREVDeployer,
     MockJBProjects,
     MockJBPermissions
 } from "./mock/MockJBContracts.sol";
@@ -41,7 +40,6 @@ contract LPSplitHookV4TestBase is Test {
     MockJBTokens public jbTokens;
     MockJBPrices public prices;
     MockJBTerminalStore public store;
-    MockREVDeployer public revDeployer;
     MockPositionManager public positionManager;
     MockJBProjects public jbProjects;
     MockJBPermissions public permissions;
@@ -81,7 +79,6 @@ contract LPSplitHookV4TestBase is Test {
         jbTokens = new MockJBTokens();
         prices = new MockJBPrices();
         store = new MockJBTerminalStore();
-        revDeployer = new MockREVDeployer();
         jbProjects = new MockJBProjects();
         permissions = new MockJBPermissions();
 
@@ -144,8 +141,7 @@ contract LPSplitHookV4TestBase is Test {
             IJBPermissions(address(permissions)),
             address(jbTokens),
             IPoolManager(address(1)), // placeholder — hook uses PositionManager.initializePool()
-            IPositionManager(address(positionManager)),
-            address(revDeployer)
+            IPositionManager(address(positionManager))
         );
         hook = UniV4DeploymentSplitHook(payable(LibClone.clone(address(hookImpl))));
         hook.initialize(owner, FEE_PROJECT_ID, FEE_PERCENT);

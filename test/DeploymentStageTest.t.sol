@@ -5,6 +5,7 @@ import {LPSplitHookV4TestBase} from "./TestBaseV4.sol";
 import {UniV4DeploymentSplitHook} from "../src/UniV4DeploymentSplitHook.sol";
 import {IUniV4DeploymentSplitHook} from "../src/interfaces/IUniV4DeploymentSplitHook.sol";
 import {JBPermissioned} from "@bananapus/core/abstract/JBPermissioned.sol";
+import {JBPermissionIds} from "@bananapus/permission-ids/JBPermissionIds.sol";
 import {JBSplitHookContext} from "@bananapus/core/structs/JBSplitHookContext.sol";
 
 /// @notice Tests for UniV4DeploymentSplitHook deployment stage behavior.
@@ -331,15 +332,15 @@ contract DeploymentStageTest is LPSplitHookV4TestBase {
     // 16. deployPool — succeeds for permitted operator
     // ─────────────────────────────────────────────────────────────────────
 
-    /// @notice A user with SET_BUYBACK_POOL permission (permissionId 25) granted by the
+    /// @notice A user with SET_BUYBACK_POOL permission granted by the
     ///         project owner can successfully call deployPool.
     function test_DeployPool_SucceedsFor_PermittedOperator() public {
         _accumulateTokens(PROJECT_ID, 100e18);
 
         address operator = makeAddr("operator");
 
-        // Grant SET_BUYBACK_POOL permission (25) to operator from owner for PROJECT_ID
-        permissions.setPermission(operator, owner, PROJECT_ID, 25, true);
+        // Grant SET_BUYBACK_POOL permission to operator from owner for PROJECT_ID
+        permissions.setPermission(operator, owner, PROJECT_ID, JBPermissionIds.SET_BUYBACK_POOL, true);
 
         vm.prank(operator);
         hook.deployPool(PROJECT_ID, address(terminalToken), 0, 0, 0);

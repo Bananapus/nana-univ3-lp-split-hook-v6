@@ -16,11 +16,10 @@ contract TestableHookForETH is UniV4DeploymentSplitHook {
         IJBPermissions _permissions,
         address _tokens,
         IPoolManager _poolManager,
-        IPositionManager _positionManager,
-        address _revDeployer
+        IPositionManager _positionManager
     )
         UniV4DeploymentSplitHook(
-            _directory, _permissions, _tokens, _poolManager, _positionManager, _revDeployer
+            _directory, _permissions, _tokens, _poolManager, _positionManager
         )
     {}
 
@@ -44,8 +43,7 @@ contract NativeETHTest is LPSplitHookV4TestBase {
             IJBPermissions(address(permissions)),
             address(jbTokens),
             IPoolManager(address(1)),
-            IPositionManager(address(positionManager)),
-            address(revDeployer)
+            IPositionManager(address(positionManager))
         );
         vm.store(address(testableHook), bytes32(uint256(0)), bytes32(0));
         testableHook.initialize(owner, FEE_PROJECT_ID, FEE_PERCENT);

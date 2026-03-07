@@ -8,13 +8,13 @@ import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
 
 /// @notice Tests for UniV4DeploymentSplitHook constructor and initialize() behavior.
-/// @dev Verifies all immutables are set correctly by the constructor (6 params),
+/// @dev Verifies all immutables are set correctly by the constructor (5 params),
 ///      per-clone config is set by initialize(), zero-address checks revert,
 ///      fee percent validation works, feeProjectId=0 skips controllerOf check,
 ///      and double-initialization reverts.
 contract ConstructorTest is LPSplitHookV4TestBase {
     // ─────────────────────────────────────────────────────────────────────
-    // Constructor tests (6 immutable params)
+    // Constructor tests (5 immutable params)
     // ─────────────────────────────────────────────────────────────────────
 
     /// @notice Verify all immutables are correctly set after construction + initialize.
@@ -27,7 +27,6 @@ contract ConstructorTest is LPSplitHookV4TestBase {
             address(positionManager),
             "POSITION_MANAGER mismatch"
         );
-        assertEq(hook.REV_DEPLOYER(), address(revDeployer), "REV_DEPLOYER mismatch");
     }
 
     /// @notice Verify initialize() sets per-clone config (owner, feeProjectId, feePercent).
@@ -45,8 +44,7 @@ contract ConstructorTest is LPSplitHookV4TestBase {
             IJBPermissions(address(permissions)),
             address(jbTokens),
             IPoolManager(address(1)),
-            IPositionManager(address(positionManager)),
-            address(revDeployer)
+            IPositionManager(address(positionManager))
         );
     }
 
@@ -58,8 +56,7 @@ contract ConstructorTest is LPSplitHookV4TestBase {
             IJBPermissions(address(permissions)),
             address(0), // tokens = zero
             IPoolManager(address(1)),
-            IPositionManager(address(positionManager)),
-            address(revDeployer)
+            IPositionManager(address(positionManager))
         );
     }
 
@@ -71,8 +68,7 @@ contract ConstructorTest is LPSplitHookV4TestBase {
             IJBPermissions(address(permissions)),
             address(jbTokens),
             IPoolManager(address(0)), // poolManager = zero
-            IPositionManager(address(positionManager)),
-            address(revDeployer)
+            IPositionManager(address(positionManager))
         );
     }
 
@@ -84,21 +80,7 @@ contract ConstructorTest is LPSplitHookV4TestBase {
             IJBPermissions(address(permissions)),
             address(jbTokens),
             IPoolManager(address(1)),
-            IPositionManager(address(0)), // positionManager = zero
-            address(revDeployer)
-        );
-    }
-
-    /// @notice Constructor reverts when revDeployer is address(0).
-    function test_Constructor_RevertsOn_ZeroRevDeployer() public {
-        vm.expectRevert(UniV4DeploymentSplitHook.UniV4DeploymentSplitHook_ZeroAddressNotAllowed.selector);
-        new UniV4DeploymentSplitHook(
-            address(directory),
-            IJBPermissions(address(permissions)),
-            address(jbTokens),
-            IPoolManager(address(1)),
-            IPositionManager(address(positionManager)),
-            address(0) // revDeployer = zero
+            IPositionManager(address(0)) // positionManager = zero
         );
     }
 
@@ -114,8 +96,7 @@ contract ConstructorTest is LPSplitHookV4TestBase {
             IJBPermissions(address(permissions)),
             address(jbTokens),
             IPoolManager(address(1)),
-            IPositionManager(address(positionManager)),
-            address(revDeployer)
+            IPositionManager(address(positionManager))
         );
         // Zero out slot 0 (owner) so initialize() can be called
         vm.store(address(impl), bytes32(uint256(0)), bytes32(0));
@@ -133,8 +114,7 @@ contract ConstructorTest is LPSplitHookV4TestBase {
             IJBPermissions(address(permissions)),
             address(jbTokens),
             IPoolManager(address(1)),
-            IPositionManager(address(positionManager)),
-            address(revDeployer)
+            IPositionManager(address(positionManager))
         );
         // Zero out slot 0 (owner) so initialize() can be called
         vm.store(address(impl), bytes32(uint256(0)), bytes32(0));
@@ -153,7 +133,6 @@ contract ConstructorTest is LPSplitHookV4TestBase {
             address(positionManager),
             "POSITION_MANAGER mismatch"
         );
-        assertEq(impl.REV_DEPLOYER(), address(revDeployer), "REV_DEPLOYER mismatch");
     }
 
     /// @notice Calling initialize() a second time reverts with AlreadyInitialized.
@@ -164,8 +143,7 @@ contract ConstructorTest is LPSplitHookV4TestBase {
             IJBPermissions(address(permissions)),
             address(jbTokens),
             IPoolManager(address(1)),
-            IPositionManager(address(positionManager)),
-            address(revDeployer)
+            IPositionManager(address(positionManager))
         );
         // Zero out slot 0 (owner) so initialize() can be called
         vm.store(address(impl), bytes32(uint256(0)), bytes32(0));

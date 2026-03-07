@@ -7,6 +7,7 @@ import {JBSplit} from "@bananapus/core/structs/JBSplit.sol";
 import {JBSplitHookContext} from "@bananapus/core/structs/JBSplitHookContext.sol";
 import {JBAccountingContext} from "@bananapus/core/structs/JBAccountingContext.sol";
 import {IJBSplitHook} from "@bananapus/core/interfaces/IJBSplitHook.sol";
+import {JBPermissionIds} from "@bananapus/permission-ids/JBPermissionIds.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /// @notice Security-focused tests for UniV4DeploymentSplitHook.
@@ -78,29 +79,26 @@ contract SecurityTest is LPSplitHookV4TestBase {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // 4. claimFeeTokensFor -- valid operator succeeds
+    // 4. claimFeeTokensFor -- caller with SET_BUYBACK_POOL permission succeeds
     // ─────────────────────────────────────────────────────────────────────
 
-    /// @notice claimFeeTokensFor transfers fee tokens when the beneficiary is a valid split operator.
+    /// @notice claimFeeTokensFor transfers fee tokens when the caller has SET_BUYBACK_POOL permission.
     function test_ClaimFeeTokens_ValidOperator() public {
+        address caller = makeAddr("caller");
         address beneficiary = makeAddr("beneficiary");
 
         // Step 1: Accumulate and deploy pool (deployPool called as owner inside helper)
         _accumulateAndDeploy(PROJECT_ID, 1000e18);
 
         // Step 2: Set up collectable fees on the PositionManager mock
-        // Determine token ordering to figure out which amount slot is the terminal token
         uint256 tokenId = hook.tokenIdOf(PROJECT_ID, address(terminalToken));
         (address token0,) = _sortForTest(address(projectToken), address(terminalToken));
 
         uint256 feeAmount = 50e18;
         if (token0 == address(terminalToken)) {
-            // Terminal token is token0
             positionManager.setCollectableFees(tokenId, feeAmount, 0);
-            // Mint terminal tokens to PositionManager so it can transfer them during collect
             terminalToken.mint(address(positionManager), feeAmount);
         } else {
-            // Terminal token is token1
             positionManager.setCollectableFees(tokenId, 0, feeAmount);
             terminalToken.mint(address(positionManager), feeAmount);
         }
@@ -117,13 +115,14 @@ contract SecurityTest is LPSplitHookV4TestBase {
         uint256 claimable = hook.claimableFeeTokens(PROJECT_ID);
         assertTrue(claimable > 0, "Claimable fee tokens should be > 0 after fee collection");
 
-        // Step 6: Set operator authorization for the beneficiary
-        revDeployer.setOperator(PROJECT_ID, beneficiary, true);
+        // Step 6: Grant SET_BUYBACK_POOL permission to the caller
+        permissions.setPermission(caller, owner, PROJECT_ID, JBPermissionIds.SET_BUYBACK_POOL, true);
 
         // Step 7: Record the fee project token balance before claiming
         uint256 balanceBefore = feeProjectToken.balanceOf(beneficiary);
 
-        // Step 8: Claim fee tokens
+        // Step 8: Claim fee tokens (caller has permission)
+        vm.prank(caller);
         hook.claimFeeTokensFor(PROJECT_ID, beneficiary);
 
         // Step 9: Verify tokens were transferred to beneficiary
@@ -132,16 +131,17 @@ contract SecurityTest is LPSplitHookV4TestBase {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // 5. claimFeeTokensFor -- unauthorized beneficiary reverts
+    // 5. claimFeeTokensFor -- unauthorized caller reverts
     // ─────────────────────────────────────────────────────────────────────
 
-    /// @notice claimFeeTokensFor reverts when the beneficiary is not a valid split operator.
+    /// @notice claimFeeTokensFor reverts when the caller lacks SET_BUYBACK_POOL permission.
     function test_ClaimFeeTokens_InvalidOperator_Reverts() public {
-        address beneficiary = makeAddr("unauthorized");
+        address unauthorized = makeAddr("unauthorized");
 
-        // Do NOT set the operator for this beneficiary
-        vm.expectRevert(UniV4DeploymentSplitHook.UniV4DeploymentSplitHook_UnauthorizedBeneficiary.selector);
-        hook.claimFeeTokensFor(PROJECT_ID, beneficiary);
+        // Do NOT grant permission
+        vm.prank(unauthorized);
+        vm.expectRevert();
+        hook.claimFeeTokensFor(PROJECT_ID, unauthorized);
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -175,8 +175,8 @@ contract SecurityTest is LPSplitHookV4TestBase {
         uint256 claimableBefore = hook.claimableFeeTokens(PROJECT_ID);
         assertTrue(claimableBefore > 0, "Should have claimable tokens before claiming");
 
-        // Set operator and claim
-        revDeployer.setOperator(PROJECT_ID, beneficiary, true);
+        // Grant permission to owner and claim as owner
+        vm.prank(owner);
         hook.claimFeeTokensFor(PROJECT_ID, beneficiary);
 
         // Verify the claimable balance is zeroed out
@@ -192,16 +192,14 @@ contract SecurityTest is LPSplitHookV4TestBase {
     function test_ClaimFeeTokens_ZeroBalance_NoTransfer() public {
         address beneficiary = makeAddr("beneficiary");
 
-        // Authorize the beneficiary as a valid operator
-        revDeployer.setOperator(PROJECT_ID, beneficiary, true);
-
         // No fees have been collected, so claimableFeeTokens[PROJECT_ID] == 0
         assertEq(hook.claimableFeeTokens(PROJECT_ID), 0, "Pre-condition: no claimable tokens");
 
         // Record balance before
         uint256 balanceBefore = feeProjectToken.balanceOf(beneficiary);
 
-        // Should succeed without reverting
+        // Should succeed without reverting (owner has implicit permission)
+        vm.prank(owner);
         hook.claimFeeTokensFor(PROJECT_ID, beneficiary);
 
         // No tokens should have been transferred

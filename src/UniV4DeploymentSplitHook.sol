@@ -32,7 +32,6 @@ import {Actions} from "@uniswap/v4-periphery/src/libraries/Actions.sol";
 import {LiquidityAmounts} from "@uniswap/v4-periphery/src/libraries/LiquidityAmounts.sol";
 import {JBPermissionIds} from "@bananapus/permission-ids/JBPermissionIds.sol";
 import {IUniV4DeploymentSplitHook} from "./interfaces/IUniV4DeploymentSplitHook.sol";
-import {IREVDeployer} from "./interfaces/IREVDeployer.sol";
 
 /// @custom:benediction DEVS BENEDICAT ET PROTEGAT CONTRACTVS MEAM
 /**
@@ -71,7 +70,6 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
     error UniV4DeploymentSplitHook_InvalidStageForAction();
     error UniV4DeploymentSplitHook_TerminalTokensNotAllowed();
     error UniV4DeploymentSplitHook_InvalidFeePercent();
-    error UniV4DeploymentSplitHook_UnauthorizedBeneficiary();
     error UniV4DeploymentSplitHook_InvalidTerminalToken();
     error UniV4DeploymentSplitHook_PoolAlreadyDeployed();
     error UniV4DeploymentSplitHook_AlreadyInitialized();
@@ -104,9 +102,6 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
 
     /// @notice Uniswap V4 PositionManager address
     IPositionManager public immutable POSITION_MANAGER;
-
-    /// @notice REVDeployer contract address for revnet operator validation
-    address public immutable REV_DEPLOYER;
 
     /// @notice Project ID to receive LP fees
     uint256 public FEE_PROJECT_ID;
@@ -142,14 +137,12 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
     /// @param tokens JBTokens address
     /// @param poolManager Uniswap V4 PoolManager address
     /// @param positionManager Uniswap V4 PositionManager address
-    /// @param revDeployer REVDeployer contract address for revnet operator validation
     constructor(
         address directory,
         IJBPermissions permissions,
         address tokens,
         IPoolManager poolManager,
-        IPositionManager positionManager,
-        address revDeployer
+        IPositionManager positionManager
     )
         JBPermissioned(permissions)
         Ownable(msg.sender)
@@ -158,13 +151,11 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
         if (tokens == address(0)) revert UniV4DeploymentSplitHook_ZeroAddressNotAllowed();
         if (address(poolManager) == address(0)) revert UniV4DeploymentSplitHook_ZeroAddressNotAllowed();
         if (address(positionManager) == address(0)) revert UniV4DeploymentSplitHook_ZeroAddressNotAllowed();
-        if (revDeployer == address(0)) revert UniV4DeploymentSplitHook_ZeroAddressNotAllowed();
 
         DIRECTORY = directory;
         TOKENS = tokens;
         POOL_MANAGER = poolManager;
         POSITION_MANAGER = positionManager;
-        REV_DEPLOYER = revDeployer;
     }
 
     /// @notice Initialize per-instance config on a clone. Can only be called once (clones start with owner = address(0)).
@@ -425,11 +416,14 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
     // --------------------- external transactions ----------------------- //
     //*********************************************************************//
 
-    /// @notice Claim fee tokens for a beneficiary (must be the project's revnet operator)
+    /// @notice Claim fee tokens for a beneficiary.
+    /// @dev Requires SET_BUYBACK_POOL permission from the project owner.
     function claimFeeTokensFor(uint256 projectId, address beneficiary) external {
-        if (!IREVDeployer(REV_DEPLOYER).isSplitOperatorOf({projectId: projectId, operator: beneficiary})) {
-            revert UniV4DeploymentSplitHook_UnauthorizedBeneficiary();
-        }
+        _requirePermissionFrom({
+            account: IJBDirectory(DIRECTORY).PROJECTS().ownerOf(projectId),
+            projectId: projectId,
+            permissionId: JBPermissionIds.SET_BUYBACK_POOL
+        });
 
         uint256 claimableAmount = claimableFeeTokens[projectId];
         claimableFeeTokens[projectId] = 0;

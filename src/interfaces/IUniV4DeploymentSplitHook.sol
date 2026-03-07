@@ -30,7 +30,7 @@ interface IUniV4DeploymentSplitHook {
     /// @dev Emitted when tokens are burned in Stage 2
     event TokensBurned(uint256 indexed projectId, address indexed token, uint256 amount);
 
-    /// @dev Emitted when fee tokens are claimed by a revnet operator
+    /// @dev Emitted when fee tokens are claimed
     event FeeTokensClaimed(uint256 indexed projectId, address indexed beneficiary, uint256 amount);
 
     /**
@@ -82,9 +82,10 @@ interface IUniV4DeploymentSplitHook {
     function collectAndRouteLPFees(uint256 projectId, address terminalToken) external;
 
     /**
-     * @notice Claim fee tokens for a beneficiary (must be the project's revnet operator)
+     * @notice Claim fee tokens for a beneficiary.
+     * @dev Caller must have SET_BUYBACK_POOL permission from the project owner.
      * @param projectId The Juicebox project ID
-     * @param beneficiary The beneficiary address to claim tokens for
+     * @param beneficiary The beneficiary address to send claimed tokens to
      */
     function claimFeeTokensFor(uint256 projectId, address beneficiary) external;
 }

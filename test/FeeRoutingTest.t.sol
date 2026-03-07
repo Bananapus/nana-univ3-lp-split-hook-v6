@@ -4,6 +4,7 @@ pragma solidity 0.8.26;
 import {LPSplitHookV4TestBase} from "./TestBaseV4.sol";
 import {UniV4DeploymentSplitHook} from "../src/UniV4DeploymentSplitHook.sol";
 import {IUniV4DeploymentSplitHook} from "../src/interfaces/IUniV4DeploymentSplitHook.sol";
+import {JBPermissionIds} from "@bananapus/permission-ids/JBPermissionIds.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /// @notice Tests for UniV4DeploymentSplitHook fee routing logic.
@@ -242,7 +243,7 @@ contract FeeRoutingTest is LPSplitHookV4TestBase {
     // 10. claimFeeTokensFor -- valid operator receives tokens
     // -----------------------------------------------------------------------
 
-    /// @notice A valid revnet operator can claim accumulated fee tokens.
+    /// @notice A caller with SET_BUYBACK_POOL permission can claim accumulated fee tokens.
     function test_ClaimFeeTokens_ValidOperator() public {
         // First generate claimable fee tokens
         uint256 feeAmount = 1000e18;
@@ -252,11 +253,12 @@ contract FeeRoutingTest is LPSplitHookV4TestBase {
         uint256 claimable = hook.claimableFeeTokens(PROJECT_ID);
         assertGt(claimable, 0, "Should have claimable fee tokens");
 
-        // Set user as the operator for PROJECT_ID
-        revDeployer.setOperator(PROJECT_ID, user, true);
+        // Grant SET_BUYBACK_POOL permission to user
+        permissions.setPermission(user, owner, PROJECT_ID, JBPermissionIds.SET_BUYBACK_POOL, true);
 
         uint256 userBalanceBefore = feeProjectToken.balanceOf(user);
 
+        vm.prank(user);
         hook.claimFeeTokensFor(PROJECT_ID, user);
 
         uint256 userBalanceAfter = feeProjectToken.balanceOf(user);
@@ -267,15 +269,16 @@ contract FeeRoutingTest is LPSplitHookV4TestBase {
     // 11. claimFeeTokensFor -- reverts for non-operator
     // -----------------------------------------------------------------------
 
-    /// @notice claimFeeTokensFor should revert when beneficiary is not a valid revnet operator.
+    /// @notice claimFeeTokensFor should revert when caller lacks SET_BUYBACK_POOL permission.
     function test_ClaimFeeTokens_InvalidOperator_Reverts() public {
         // Generate claimable fee tokens first
         uint256 feeAmount = 1000e18;
         _setTerminalTokenFees(feeAmount);
         hook.collectAndRouteLPFees(PROJECT_ID, address(terminalToken));
 
-        // Do NOT set user as operator
-        vm.expectRevert(UniV4DeploymentSplitHook.UniV4DeploymentSplitHook_UnauthorizedBeneficiary.selector);
+        // Do NOT grant permission to user
+        vm.prank(user);
+        vm.expectRevert();
         hook.claimFeeTokensFor(PROJECT_ID, user);
     }
 
@@ -292,8 +295,8 @@ contract FeeRoutingTest is LPSplitHookV4TestBase {
 
         assertGt(hook.claimableFeeTokens(PROJECT_ID), 0, "Should have claimable fee tokens before claim");
 
-        // Set user as operator and claim
-        revDeployer.setOperator(PROJECT_ID, user, true);
+        // Claim as owner (has implicit permission)
+        vm.prank(owner);
         hook.claimFeeTokensFor(PROJECT_ID, user);
 
         assertEq(hook.claimableFeeTokens(PROJECT_ID), 0, "claimableFeeTokens should be zero after claim");
