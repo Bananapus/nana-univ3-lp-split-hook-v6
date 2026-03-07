@@ -5,11 +5,17 @@ import {LPSplitHookTestBase} from "./TestBase.sol";
 import {UniV3DeploymentSplitHook} from "../src/UniV3DeploymentSplitHook.sol";
 import {IJBPermissions} from "@bananapus/core/interfaces/IJBPermissions.sol";
 
-/// @notice Tests for UniV3DeploymentSplitHook constructor behavior.
-/// @dev Verifies all immutables are set correctly, zero-address checks revert,
-///      fee percent validation works, and feeProjectId=0 skips the controllerOf check.
+/// @notice Tests for UniV3DeploymentSplitHook constructor and initialize() behavior.
+/// @dev Verifies all immutables are set correctly by the constructor (6 params),
+///      per-clone config is set by initialize(), zero-address checks revert,
+///      fee percent validation works, feeProjectId=0 skips controllerOf check,
+///      and double-initialization reverts.
 contract ConstructorTest is LPSplitHookTestBase {
-    /// @notice Verify all immutables are correctly set after construction.
+    // ─────────────────────────────────────────────────────────────────────
+    // Constructor tests (6 immutable params)
+    // ─────────────────────────────────────────────────────────────────────
+
+    /// @notice Verify all immutables are correctly set after construction + initialize.
     function test_Constructor_SetsAllImmutables() public view {
         assertEq(hook.DIRECTORY(), address(directory), "DIRECTORY mismatch");
         assertEq(hook.TOKENS(), address(jbTokens), "TOKENS mismatch");
@@ -19,9 +25,13 @@ contract ConstructorTest is LPSplitHookTestBase {
             address(nfpm),
             "UNISWAP_V3_NONFUNGIBLE_POSITION_MANAGER mismatch"
         );
+        assertEq(hook.REV_DEPLOYER(), address(revDeployer), "REV_DEPLOYER mismatch");
+    }
+
+    /// @notice Verify initialize() sets per-clone config (owner, feeProjectId, feePercent).
+    function test_Initialize_SetsCloneConfig() public view {
         assertEq(hook.FEE_PROJECT_ID(), FEE_PROJECT_ID, "FEE_PROJECT_ID mismatch");
         assertEq(hook.FEE_PERCENT(), FEE_PERCENT, "FEE_PERCENT mismatch");
-        assertEq(hook.REV_DEPLOYER(), address(revDeployer), "REV_DEPLOYER mismatch");
         assertEq(hook.owner(), owner, "owner mismatch");
     }
 
@@ -29,14 +39,11 @@ contract ConstructorTest is LPSplitHookTestBase {
     function test_Constructor_RevertsOn_ZeroDirectory() public {
         vm.expectRevert(UniV3DeploymentSplitHook.UniV3DeploymentSplitHook_ZeroAddressNotAllowed.selector);
         new UniV3DeploymentSplitHook(
-            owner,
             address(0), // directory = zero
             IJBPermissions(address(permissions)),
             address(jbTokens),
             address(v3Factory),
             address(nfpm),
-            FEE_PROJECT_ID,
-            FEE_PERCENT,
             address(revDeployer)
         );
     }
@@ -45,14 +52,11 @@ contract ConstructorTest is LPSplitHookTestBase {
     function test_Constructor_RevertsOn_ZeroTokens() public {
         vm.expectRevert(UniV3DeploymentSplitHook.UniV3DeploymentSplitHook_ZeroAddressNotAllowed.selector);
         new UniV3DeploymentSplitHook(
-            owner,
             address(directory),
             IJBPermissions(address(permissions)),
             address(0), // tokens = zero
             address(v3Factory),
             address(nfpm),
-            FEE_PROJECT_ID,
-            FEE_PERCENT,
             address(revDeployer)
         );
     }
@@ -61,14 +65,11 @@ contract ConstructorTest is LPSplitHookTestBase {
     function test_Constructor_RevertsOn_ZeroFactory() public {
         vm.expectRevert(UniV3DeploymentSplitHook.UniV3DeploymentSplitHook_ZeroAddressNotAllowed.selector);
         new UniV3DeploymentSplitHook(
-            owner,
             address(directory),
             IJBPermissions(address(permissions)),
             address(jbTokens),
             address(0), // uniswapV3Factory = zero
             address(nfpm),
-            FEE_PROJECT_ID,
-            FEE_PERCENT,
             address(revDeployer)
         );
     }
@@ -77,14 +78,11 @@ contract ConstructorTest is LPSplitHookTestBase {
     function test_Constructor_RevertsOn_ZeroNFPM() public {
         vm.expectRevert(UniV3DeploymentSplitHook.UniV3DeploymentSplitHook_ZeroAddressNotAllowed.selector);
         new UniV3DeploymentSplitHook(
-            owner,
             address(directory),
             IJBPermissions(address(permissions)),
             address(jbTokens),
             address(v3Factory),
             address(0), // nfpm = zero
-            FEE_PROJECT_ID,
-            FEE_PERCENT,
             address(revDeployer)
         );
     }
@@ -93,61 +91,88 @@ contract ConstructorTest is LPSplitHookTestBase {
     function test_Constructor_RevertsOn_ZeroRevDeployer() public {
         vm.expectRevert(UniV3DeploymentSplitHook.UniV3DeploymentSplitHook_ZeroAddressNotAllowed.selector);
         new UniV3DeploymentSplitHook(
-            owner,
             address(directory),
             IJBPermissions(address(permissions)),
             address(jbTokens),
             address(v3Factory),
             address(nfpm),
-            FEE_PROJECT_ID,
-            FEE_PERCENT,
             address(0) // revDeployer = zero
         );
     }
 
-    /// @notice Constructor reverts when feePercent exceeds 10000 (100%).
-    function test_Constructor_RevertsOn_FeePercentOver100() public {
-        vm.expectRevert(UniV3DeploymentSplitHook.UniV3DeploymentSplitHook_InvalidFeePercent.selector);
-        new UniV3DeploymentSplitHook(
-            owner,
+    // ─────────────────────────────────────────────────────────────────────
+    // initialize() tests
+    // ─────────────────────────────────────────────────────────────────────
+
+    /// @notice initialize() reverts when feePercent exceeds 10000 (100%).
+    function test_Initialize_RevertsOn_FeePercentOver100() public {
+        // Deploy a fresh implementation
+        UniV3DeploymentSplitHook impl = new UniV3DeploymentSplitHook(
             address(directory),
             IJBPermissions(address(permissions)),
             address(jbTokens),
             address(v3Factory),
             address(nfpm),
-            FEE_PROJECT_ID,
-            10_001, // feePercent > BPS (10000)
             address(revDeployer)
         );
+        // Zero out slot 0 (owner) so initialize() can be called
+        vm.store(address(impl), bytes32(uint256(0)), bytes32(0));
+
+        vm.expectRevert(UniV3DeploymentSplitHook.UniV3DeploymentSplitHook_InvalidFeePercent.selector);
+        impl.initialize(owner, FEE_PROJECT_ID, 10_001);
     }
 
-    /// @notice When feeProjectId is 0, the constructor skips the controllerOf validation
+    /// @notice When feeProjectId is 0, initialize() skips the controllerOf validation
     ///         and completes successfully without requiring a valid fee project.
-    function test_Constructor_FeeProjectIdZero_NoValidation() public {
-        UniV3DeploymentSplitHook noFeeHook = new UniV3DeploymentSplitHook(
-            owner,
+    function test_Initialize_FeeProjectIdZero_NoValidation() public {
+        // Deploy a fresh implementation
+        UniV3DeploymentSplitHook impl = new UniV3DeploymentSplitHook(
             address(directory),
             IJBPermissions(address(permissions)),
             address(jbTokens),
             address(v3Factory),
             address(nfpm),
-            0, // feeProjectId = 0 => skip controllerOf check
-            FEE_PERCENT,
             address(revDeployer)
         );
+        // Zero out slot 0 (owner) so initialize() can be called
+        vm.store(address(impl), bytes32(uint256(0)), bytes32(0));
 
-        assertEq(noFeeHook.FEE_PROJECT_ID(), 0, "FEE_PROJECT_ID should be 0");
-        // All other immutables should still be set correctly.
-        assertEq(noFeeHook.DIRECTORY(), address(directory), "DIRECTORY mismatch");
-        assertEq(noFeeHook.TOKENS(), address(jbTokens), "TOKENS mismatch");
-        assertEq(noFeeHook.UNISWAP_V3_FACTORY(), address(v3Factory), "UNISWAP_V3_FACTORY mismatch");
+        impl.initialize(owner, 0, FEE_PERCENT);
+
+        assertEq(impl.FEE_PROJECT_ID(), 0, "FEE_PROJECT_ID should be 0");
+        assertEq(impl.FEE_PERCENT(), FEE_PERCENT, "FEE_PERCENT mismatch");
+        assertEq(impl.owner(), owner, "owner mismatch");
+        // All immutables should still be set correctly.
+        assertEq(impl.DIRECTORY(), address(directory), "DIRECTORY mismatch");
+        assertEq(impl.TOKENS(), address(jbTokens), "TOKENS mismatch");
+        assertEq(impl.UNISWAP_V3_FACTORY(), address(v3Factory), "UNISWAP_V3_FACTORY mismatch");
         assertEq(
-            noFeeHook.UNISWAP_V3_NONFUNGIBLE_POSITION_MANAGER(),
+            impl.UNISWAP_V3_NONFUNGIBLE_POSITION_MANAGER(),
             address(nfpm),
             "UNISWAP_V3_NONFUNGIBLE_POSITION_MANAGER mismatch"
         );
-        assertEq(noFeeHook.FEE_PERCENT(), FEE_PERCENT, "FEE_PERCENT mismatch");
-        assertEq(noFeeHook.REV_DEPLOYER(), address(revDeployer), "REV_DEPLOYER mismatch");
-        assertEq(noFeeHook.owner(), owner, "owner mismatch");
+        assertEq(impl.REV_DEPLOYER(), address(revDeployer), "REV_DEPLOYER mismatch");
+    }
+
+    /// @notice Calling initialize() a second time reverts with AlreadyInitialized.
+    function test_Initialize_RevertsOn_DoubleInit() public {
+        // Deploy a fresh implementation
+        UniV3DeploymentSplitHook impl = new UniV3DeploymentSplitHook(
+            address(directory),
+            IJBPermissions(address(permissions)),
+            address(jbTokens),
+            address(v3Factory),
+            address(nfpm),
+            address(revDeployer)
+        );
+        // Zero out slot 0 (owner) so initialize() can be called
+        vm.store(address(impl), bytes32(uint256(0)), bytes32(0));
+
+        // First init succeeds
+        impl.initialize(owner, FEE_PROJECT_ID, FEE_PERCENT);
+
+        // Second init reverts
+        vm.expectRevert(UniV3DeploymentSplitHook.UniV3DeploymentSplitHook_AlreadyInitialized.selector);
+        impl.initialize(owner, FEE_PROJECT_ID, FEE_PERCENT);
     }
 }

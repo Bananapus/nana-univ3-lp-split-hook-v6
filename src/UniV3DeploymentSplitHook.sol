@@ -90,6 +90,9 @@ contract UniV3DeploymentSplitHook is IUniV3DeploymentSplitHook, IJBSplitHook, JB
     /// @dev Thrown when pool has already been deployed for this project/token pair
     error UniV3DeploymentSplitHook_PoolAlreadyDeployed();
 
+    /// @dev Thrown when initialize() is called on an already-initialized clone or the implementation itself.
+    error UniV3DeploymentSplitHook_AlreadyInitialized();
+
     //*********************************************************************//
     // ------------------------- public constants ------------------------ //
     //*********************************************************************//
@@ -119,14 +122,14 @@ contract UniV3DeploymentSplitHook is IUniV3DeploymentSplitHook, IJBSplitHook, JB
     /// @notice UniswapV3 NonFungiblePositionManager address
     address public immutable UNISWAP_V3_NONFUNGIBLE_POSITION_MANAGER;
 
-    /// @notice Project ID to receive LP fees
-    uint256 public immutable FEE_PROJECT_ID;
-
-    /// @notice Percentage of LP fees to route to fee project (in basis points, e.g., 3800 = 38%)
-    uint256 public immutable FEE_PERCENT;
-
     /// @notice REVDeployer contract address for revnet operator validation
     address public immutable REV_DEPLOYER;
+
+    /// @notice Project ID to receive LP fees
+    uint256 public FEE_PROJECT_ID;
+
+    /// @notice Percentage of LP fees to route to fee project (in basis points, e.g., 3800 = 38%)
+    uint256 public FEE_PERCENT;
 
     //*********************************************************************//
     // --------------------- public stored properties -------------------- //
@@ -155,53 +158,60 @@ contract UniV3DeploymentSplitHook is IUniV3DeploymentSplitHook, IJBSplitHook, JB
     // ---------------------------- constructor -------------------------- //
     //*********************************************************************//
 
-    /// @param initialOwner Initial owner/admin of the contract
     /// @param directory JBDirectory address
     /// @param permissions JBPermissions address
     /// @param tokens JBTokens address
     /// @param uniswapV3Factory UniswapV3Factory address
     /// @param uniswapV3NonfungiblePositionManager UniswapV3 NonfungiblePositionManager address
-    /// @param feeProjectId Project ID to receive LP fees
-    /// @param feePercent Percentage of LP fees to route to fee project (in basis points, e.g., 3800 = 38%)
     /// @param revDeployer REVDeployer contract address for revnet operator validation
     constructor(
-        address initialOwner,
         address directory,
         IJBPermissions permissions,
         address tokens,
         address uniswapV3Factory,
         address uniswapV3NonfungiblePositionManager,
-        uint256 feeProjectId,
-        uint256 feePercent,
         address revDeployer
     )
         JBPermissioned(permissions)
-        Ownable(initialOwner)
+        Ownable(msg.sender)
     {
         if (directory == address(0)) revert UniV3DeploymentSplitHook_ZeroAddressNotAllowed();
         if (tokens == address(0)) revert UniV3DeploymentSplitHook_ZeroAddressNotAllowed();
         if (uniswapV3Factory == address(0)) revert UniV3DeploymentSplitHook_ZeroAddressNotAllowed();
         if (uniswapV3NonfungiblePositionManager == address(0)) revert UniV3DeploymentSplitHook_ZeroAddressNotAllowed();
         if (revDeployer == address(0)) revert UniV3DeploymentSplitHook_ZeroAddressNotAllowed();
-        if (feePercent > BPS) revert UniV3DeploymentSplitHook_InvalidFeePercent(); // Max 100% in basis points
 
         DIRECTORY = directory;
         TOKENS = tokens;
-
         UNISWAP_V3_FACTORY = uniswapV3Factory;
         UNISWAP_V3_NONFUNGIBLE_POSITION_MANAGER = uniswapV3NonfungiblePositionManager;
-        FEE_PERCENT = feePercent;
         REV_DEPLOYER = revDeployer;
+    }
 
-        // Validate FEE_PROJECT_ID points to a valid project with a controller
-        // This ensures fee routing will work correctly
+    /// @notice Initialize per-instance config on a clone. Can only be called once (clones start with owner = address(0)).
+    /// @param initialOwner The owner of this clone instance.
+    /// @param feeProjectId Project ID to receive LP fees.
+    /// @param feePercent Percentage of LP fees to route to fee project (in basis points, e.g., 3800 = 38%).
+    function initialize(
+        address initialOwner,
+        uint256 feeProjectId,
+        uint256 feePercent
+    ) external {
+        // Guard: clones start with owner = address(0). Implementation has owner set by constructor.
+        if (owner() != address(0)) revert UniV3DeploymentSplitHook_AlreadyInitialized();
+
+        if (feePercent > BPS) revert UniV3DeploymentSplitHook_InvalidFeePercent();
+
+        // Validate fee project if provided
         if (feeProjectId != 0) {
-            address feeController = address(IJBDirectory(directory).controllerOf(feeProjectId));
-            if (feeController == address(0)) {
-                revert UniV3DeploymentSplitHook_InvalidProjectId();
-            }
+            address feeController = address(IJBDirectory(DIRECTORY).controllerOf(feeProjectId));
+            if (feeController == address(0)) revert UniV3DeploymentSplitHook_InvalidProjectId();
         }
+
         FEE_PROJECT_ID = feeProjectId;
+        FEE_PERCENT = feePercent;
+
+        _transferOwnership(initialOwner);
     }
 
     /// @notice Accept ETH transfers (needed for WETH unwrap and cashOut with native ETH).

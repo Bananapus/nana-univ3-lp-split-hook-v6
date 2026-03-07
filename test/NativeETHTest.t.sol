@@ -10,18 +10,15 @@ import {JBAccountingContext} from "@bananapus/core/structs/JBAccountingContext.s
 /// @notice Wrapper contract that exposes internal native-ETH helper functions for testing.
 contract TestableHookForETH is UniV3DeploymentSplitHook {
     constructor(
-        address _owner,
         address _directory,
         IJBPermissions _permissions,
         address _tokens,
         address _factory,
         address _nfpm,
-        uint256 _feeProjectId,
-        uint256 _feePercent,
         address _revDeployer
     )
         UniV3DeploymentSplitHook(
-            _owner, _directory, _permissions, _tokens, _factory, _nfpm, _feeProjectId, _feePercent, _revDeployer
+            _directory, _permissions, _tokens, _factory, _nfpm, _revDeployer
         )
     {}
 
@@ -49,16 +46,15 @@ contract NativeETHTest is LPSplitHookTestBase {
         super.setUp();
 
         testableHook = new TestableHookForETH(
-            owner,
             address(directory),
             IJBPermissions(address(permissions)),
             address(jbTokens),
             address(v3Factory),
             address(nfpm),
-            FEE_PROJECT_ID,
-            FEE_PERCENT,
             address(revDeployer)
         );
+        vm.store(address(testableHook), bytes32(uint256(0)), bytes32(0));
+        testableHook.initialize(owner, FEE_PROJECT_ID, FEE_PERCENT);
     }
 
     // -----------------------------------------------------------------------

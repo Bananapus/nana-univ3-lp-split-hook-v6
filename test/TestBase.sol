@@ -11,6 +11,7 @@ import {JBAccountingContext} from "@bananapus/core/structs/JBAccountingContext.s
 import {IJBSplitHook} from "@bananapus/core/interfaces/IJBSplitHook.sol";
 import {JBConstants} from "@bananapus/core/libraries/JBConstants.sol";
 
+import {LibClone} from "solady/src/utils/LibClone.sol";
 import {UniV3DeploymentSplitHook} from "../src/UniV3DeploymentSplitHook.sol";
 import {MockERC20} from "./mock/MockERC20.sol";
 import {MockWETH} from "./mock/MockWETH.sol";
@@ -142,18 +143,17 @@ contract LPSplitHookTestBase is Test {
         // Add terminal to directory's terminal list
         _addDirectoryTerminal(PROJECT_ID, address(terminal));
 
-        // Deploy the hook
-        hook = new UniV3DeploymentSplitHook(
-            owner,
+        // Deploy the hook (implementation + clone + initialize)
+        UniV3DeploymentSplitHook hookImpl = new UniV3DeploymentSplitHook(
             address(directory),
             IJBPermissions(address(permissions)),
             address(jbTokens),
             address(v3Factory),
             address(nfpm),
-            FEE_PROJECT_ID,
-            FEE_PERCENT,
             address(revDeployer)
         );
+        hook = UniV3DeploymentSplitHook(payable(LibClone.clone(address(hookImpl))));
+        hook.initialize(owner, FEE_PROJECT_ID, FEE_PERCENT);
     }
 
     // ─── Directory Helpers (write to fallback-based mock) ───────────────
