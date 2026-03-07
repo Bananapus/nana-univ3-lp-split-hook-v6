@@ -80,7 +80,6 @@ contract UniV3DeploymentSplitHook is IUniV3DeploymentSplitHook, IJBSplitHook, JB
     /// @dev Thrown when fee percent exceeds 100% (10000 basis points)
     error UniV3DeploymentSplitHook_InvalidFeePercent();
 
-
     /// @dev Thrown when terminalToken is not a valid terminal token for the projectId
     error UniV3DeploymentSplitHook_InvalidTerminalToken();
 
@@ -178,15 +177,12 @@ contract UniV3DeploymentSplitHook is IUniV3DeploymentSplitHook, IJBSplitHook, JB
         UNISWAP_V3_NONFUNGIBLE_POSITION_MANAGER = uniswapV3NonfungiblePositionManager;
     }
 
-    /// @notice Initialize per-instance config on a clone. Can only be called once (clones start with owner = address(0)).
+    /// @notice Initialize per-instance config on a clone.
+    /// Can only be called once (clones start with owner = address(0)).
     /// @param initialOwner The owner of this clone instance.
     /// @param feeProjectId Project ID to receive LP fees.
     /// @param feePercent Percentage of LP fees to route to fee project (in basis points, e.g., 3800 = 38%).
-    function initialize(
-        address initialOwner,
-        uint256 feeProjectId,
-        uint256 feePercent
-    ) external {
+    function initialize(address initialOwner, uint256 feeProjectId, uint256 feePercent) external {
         // Guard: clones start with owner = address(0). Implementation has owner set by constructor.
         if (owner() != address(0)) revert UniV3DeploymentSplitHook_AlreadyInitialized();
 

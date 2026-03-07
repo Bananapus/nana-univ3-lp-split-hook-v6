@@ -16,9 +16,7 @@ contract TestableHookForETH is UniV3DeploymentSplitHook {
         address _factory,
         address _nfpm
     )
-        UniV3DeploymentSplitHook(
-            _directory, _permissions, _tokens, _factory, _nfpm
-        )
+        UniV3DeploymentSplitHook(_directory, _permissions, _tokens, _factory, _nfpm)
     {}
 
     function exposed_isNativeToken(address token) external pure returns (bool) {

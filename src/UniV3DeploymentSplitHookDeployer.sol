@@ -50,8 +50,7 @@ contract UniV3DeploymentSplitHookDeployer is IUniV3DeploymentSplitHookDeployer {
             salt == bytes32(0)
                 ? LibClone.clone(address(HOOK))
                 : LibClone.cloneDeterministic({
-                    implementation: address(HOOK),
-                    salt: keccak256(abi.encode(msg.sender, salt))
+                    implementation: address(HOOK), salt: keccak256(abi.encode(msg.sender, salt))
                 })
         );
 

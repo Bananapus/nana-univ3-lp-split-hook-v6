@@ -6,10 +6,7 @@ import {IUniV3DeploymentSplitHook} from "./IUniV3DeploymentSplitHook.sol";
 
 interface IUniV3DeploymentSplitHookDeployer {
     event HookDeployed(
-        uint256 indexed feeProjectId,
-        uint256 feePercent,
-        IUniV3DeploymentSplitHook hook,
-        address caller
+        uint256 indexed feeProjectId, uint256 feePercent, IUniV3DeploymentSplitHook hook, address caller
     );
 
     function HOOK() external view returns (UniV3DeploymentSplitHook);

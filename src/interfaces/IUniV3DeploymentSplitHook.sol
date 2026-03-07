@@ -37,11 +37,7 @@ interface IUniV3DeploymentSplitHook {
      * @param feeProjectId Project ID to receive LP fees.
      * @param feePercent Percentage of LP fees to route to fee project (in basis points).
      */
-    function initialize(
-        address initialOwner,
-        uint256 feeProjectId,
-        uint256 feePercent
-    ) external;
+    function initialize(address initialOwner, uint256 feeProjectId, uint256 feePercent) external;
 
     /**
      * @notice Check if a pool has been deployed for a project/terminal token pair

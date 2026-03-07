@@ -15,9 +15,7 @@ contract TestableUniV3DeploymentSplitHook is UniV3DeploymentSplitHook {
         address _factory,
         address _nfpm
     )
-        UniV3DeploymentSplitHook(
-            _directory, _permissions, _tokens, _factory, _nfpm
-        )
+        UniV3DeploymentSplitHook(_directory, _permissions, _tokens, _factory, _nfpm)
     {}
 
     function exposed_getIssuanceRate(uint256 projectId, address terminalToken) external view returns (uint256) {
