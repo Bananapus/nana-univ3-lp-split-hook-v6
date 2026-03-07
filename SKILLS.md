@@ -1,4 +1,4 @@
-# nana-univ4-lp-split-hook
+# Nana UniV4 LP Split Hook
 
 ## Purpose
 
