@@ -107,7 +107,8 @@ Juicebox reserved-token split hook that accumulates project tokens, deploys a Un
 | `UniV4DeploymentSplitHook_InvalidFeePercent` | `feePercent > BPS` (> 100%) |
 | `UniV4DeploymentSplitHook_InvalidTerminalToken` | No primary terminal found for project/token pair |
 | `UniV4DeploymentSplitHook_PoolAlreadyDeployed` | `deployPool` called for a pair that already has a position |
-| `UniV4DeploymentSplitHook_AlreadyInitialized` | `initialize` called on a clone that already has an owner |
+| `UniV4DeploymentSplitHook_AlreadyInitialized` | `initialize` called on a clone that was already initialized (uses explicit `initialized` flag, safe against `renounceOwnership` re-init) |
+| `UniV4DeploymentSplitHook_FeePercentWithoutFeeProject` | `initialize` called with `feePercent > 0` but `feeProjectId == 0` (fees would get stuck since `primaryTerminalOf(0, token)` returns `address(0)`) |
 
 ## Constants
 
@@ -126,6 +127,7 @@ Juicebox reserved-token split hook that accumulates project tokens, deploys a Un
 | `accumulatedProjectTokens` | `projectId => uint256` | Pre-deployment token accumulation |
 | `projectDeployed` | `projectId => bool` | Switches accumulate (Stage 1) to burn (Stage 2) |
 | `claimableFeeTokens` | `projectId => uint256` | Fee-project tokens claimable via `claimFeeTokensFor` |
+| `initialized` | `bool` | Prevents re-initialization after `renounceOwnership()` (explicit flag instead of relying on `owner() == address(0)`) |
 
 ## Gotchas
 

@@ -101,9 +101,8 @@ contract ConstructorTest is LPSplitHookV4TestBase {
         impl.initialize(owner, FEE_PROJECT_ID, 10_001);
     }
 
-    /// @notice When feeProjectId is 0, initialize() skips the controllerOf validation
-    ///         and completes successfully without requiring a valid fee project.
-    function test_Initialize_FeeProjectIdZero_NoValidation() public {
+    /// @notice initialize() reverts when feeProjectId is 0 but feePercent > 0 (L-25 fix).
+    function test_Initialize_RevertsOn_FeePercentWithoutFeeProject() public {
         // Deploy a fresh implementation
         UniV4DeploymentSplitHook impl = new UniV4DeploymentSplitHook(
             address(directory),
@@ -115,16 +114,28 @@ contract ConstructorTest is LPSplitHookV4TestBase {
         // Zero out slot 0 (owner) so initialize() can be called
         vm.store(address(impl), bytes32(uint256(0)), bytes32(0));
 
+        vm.expectRevert(UniV4DeploymentSplitHook.UniV4DeploymentSplitHook_FeePercentWithoutFeeProject.selector);
         impl.initialize(owner, 0, FEE_PERCENT);
+    }
+
+    /// @notice When both feeProjectId and feePercent are 0, initialize() succeeds (no fees configured).
+    function test_Initialize_FeeProjectIdZero_FeePercentZero_Succeeds() public {
+        // Deploy a fresh implementation
+        UniV4DeploymentSplitHook impl = new UniV4DeploymentSplitHook(
+            address(directory),
+            IJBPermissions(address(permissions)),
+            address(jbTokens),
+            IPoolManager(address(1)),
+            IPositionManager(address(positionManager))
+        );
+        // Zero out slot 0 (owner) so initialize() can be called
+        vm.store(address(impl), bytes32(uint256(0)), bytes32(0));
+
+        impl.initialize(owner, 0, 0);
 
         assertEq(impl.FEE_PROJECT_ID(), 0, "FEE_PROJECT_ID should be 0");
-        assertEq(impl.FEE_PERCENT(), FEE_PERCENT, "FEE_PERCENT mismatch");
+        assertEq(impl.FEE_PERCENT(), 0, "FEE_PERCENT should be 0");
         assertEq(impl.owner(), owner, "owner mismatch");
-        // All immutables should still be set correctly.
-        assertEq(impl.DIRECTORY(), address(directory), "DIRECTORY mismatch");
-        assertEq(impl.TOKENS(), address(jbTokens), "TOKENS mismatch");
-        assertEq(address(impl.POOL_MANAGER()), address(1), "POOL_MANAGER mismatch");
-        assertEq(address(impl.POSITION_MANAGER()), address(positionManager), "POSITION_MANAGER mismatch");
     }
 
     /// @notice Calling initialize() a second time reverts with AlreadyInitialized.
