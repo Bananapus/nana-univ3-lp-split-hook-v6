@@ -128,6 +128,9 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
     /// @notice ProjectID => Fee tokens claimable by that project
     mapping(uint256 projectId => uint256 claimableFeeTokens) public claimableFeeTokens;
 
+    /// @notice Whether this clone instance has been initialized (prevents re-initialization after renounceOwnership).
+    bool public initialized;
+
     //*********************************************************************//
     // ---------------------------- constructor -------------------------- //
     //*********************************************************************//
@@ -158,13 +161,14 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
         POSITION_MANAGER = positionManager;
     }
 
-    /// @notice Initialize per-instance config on a clone. Can only be called once (clones start with
-    /// owner = address(0)).
+    /// @notice Initialize per-instance config on a clone. Can only be called once.
+    /// @dev Uses an explicit `initialized` flag rather than relying on owner() == address(0),
+    ///      which would allow re-initialization after renounceOwnership().
     /// @param initialOwner The owner of this clone instance.
     /// @param feeProjectId Project ID to receive LP fees.
     /// @param feePercent Percentage of LP fees to route to fee project (in basis points, e.g., 3800 = 38%).
     function initialize(address initialOwner, uint256 feeProjectId, uint256 feePercent) external {
-        if (owner() != address(0)) revert UniV4DeploymentSplitHook_AlreadyInitialized();
+        if (initialized) revert UniV4DeploymentSplitHook_AlreadyInitialized();
 
         if (feePercent > BPS) revert UniV4DeploymentSplitHook_InvalidFeePercent();
 
@@ -173,6 +177,7 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
             if (feeController == address(0)) revert UniV4DeploymentSplitHook_InvalidProjectId();
         }
 
+        initialized = true;
         FEE_PROJECT_ID = feeProjectId;
         FEE_PERCENT = feePercent;
 
