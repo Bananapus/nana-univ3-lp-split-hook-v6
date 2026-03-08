@@ -124,6 +124,7 @@ test/
   SecurityTest.t.sol                         # Permission checks, access control
   IntegrationLifecycle.t.sol                 # Full end-to-end workflow
   TestBaseV4.sol                             # Shared test infrastructure
+  regression/                               # Audit finding regression tests (M-31, M-32, L-25)
 script/
   Deploy.s.sol                               # Sphinx deployment script
 ```
