@@ -71,7 +71,11 @@ contract MockNFPM {
         address token1,
         uint24 fee,
         uint160 /* sqrtPriceX96 */
-    ) external payable returns (address pool) {
+    )
+        external
+        payable
+        returns (address pool)
+    {
         bytes32 poolKey = keccak256(abi.encodePacked(token0, token1, fee));
         pool = createdPools[poolKey];
         if (pool == address(0)) {
@@ -240,7 +244,7 @@ contract MockNFPM {
             0, // feeGrowthInside0LastX128
             0, // feeGrowthInside1LastX128
             0, // tokensOwed0
-            0  // tokensOwed1
+            0 // tokensOwed1
         );
     }
 

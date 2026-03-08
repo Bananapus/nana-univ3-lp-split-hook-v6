@@ -120,18 +120,11 @@ contract LPSplitHookTestBase is Test {
         terminal.setProjectToken(FEE_PROJECT_ID, address(feeProjectToken));
 
         // Set accounting context
-        terminal.setAccountingContext(
-            PROJECT_ID,
-            address(terminalToken),
-            uint32(uint160(address(terminalToken))),
-            18
-        );
+        terminal.setAccountingContext(PROJECT_ID, address(terminalToken), uint32(uint160(address(terminalToken))), 18);
         terminal.addAccountingContext(
             PROJECT_ID,
             JBAccountingContext({
-                token: address(terminalToken),
-                decimals: 18,
-                currency: uint32(uint160(address(terminalToken)))
+                token: address(terminalToken), decimals: 18, currency: uint32(uint160(address(terminalToken)))
             })
         );
 
@@ -189,12 +182,11 @@ contract LPSplitHookTestBase is Test {
 
     // ─── Context Builder ────────────────────────────────────────────────
 
-    function _buildContext(
-        uint256 projectId,
-        address token,
-        uint256 amount,
-        uint256 groupId
-    ) internal view returns (JBSplitHookContext memory) {
+    function _buildContext(uint256 projectId, address token, uint256 amount, uint256 groupId)
+        internal
+        view
+        returns (JBSplitHookContext memory)
+    {
         return JBSplitHookContext({
             token: token,
             amount: amount,

@@ -210,9 +210,7 @@ contract FeeRoutingTest is LPSplitHookTestBase {
 
         assertEq(terminal.payCallCount(), payCountBefore, "No pay calls expected for zero fees");
         assertEq(
-            terminal.addToBalanceCallCount(),
-            addBalanceCountBefore,
-            "No addToBalance calls expected for zero fees"
+            terminal.addToBalanceCallCount(), addBalanceCountBefore, "No addToBalance calls expected for zero fees"
         );
     }
 
@@ -263,11 +261,7 @@ contract FeeRoutingTest is LPSplitHookTestBase {
         hook.claimFeeTokensFor(PROJECT_ID, user);
 
         uint256 userBalanceAfter = feeProjectToken.balanceOf(user);
-        assertEq(
-            userBalanceAfter - userBalanceBefore,
-            claimable,
-            "User should receive all claimable fee tokens"
-        );
+        assertEq(userBalanceAfter - userBalanceBefore, claimable, "User should receive all claimable fee tokens");
     }
 
     // -----------------------------------------------------------------------
@@ -323,12 +317,7 @@ contract FeeRoutingTest is LPSplitHookTestBase {
 
         vm.expectEmit(true, true, false, true, address(hook));
         emit IUniV3DeploymentSplitHook.LPFeesRouted(
-            PROJECT_ID,
-            address(terminalToken),
-            feeAmount,
-            expectedFee,
-            expectedRemaining,
-            expectedFeeTokensMinted
+            PROJECT_ID, address(terminalToken), feeAmount, expectedFee, expectedRemaining, expectedFeeTokensMinted
         );
 
         hook.collectAndRouteLPFees(PROJECT_ID, address(terminalToken));

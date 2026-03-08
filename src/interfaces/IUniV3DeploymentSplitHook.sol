@@ -9,7 +9,6 @@ pragma solidity ^0.8.0;
  * After deployment: Route LP fees back to project, burn newly received project tokens
  */
 interface IUniV3DeploymentSplitHook {
-
     /// @dev Emitted when a project transitions from Stage 1 to Stage 2
     event ProjectDeployed(uint256 indexed projectId, address indexed terminalToken, address indexed pool);
 
