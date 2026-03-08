@@ -73,6 +73,7 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
     error UniV4DeploymentSplitHook_InvalidTerminalToken();
     error UniV4DeploymentSplitHook_PoolAlreadyDeployed();
     error UniV4DeploymentSplitHook_AlreadyInitialized();
+    error UniV4DeploymentSplitHook_FeePercentWithoutFeeProject();
 
     //*********************************************************************//
     // ------------------------- public constants ------------------------ //
@@ -171,6 +172,10 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
         if (initialized) revert UniV4DeploymentSplitHook_AlreadyInitialized();
 
         if (feePercent > BPS) revert UniV4DeploymentSplitHook_InvalidFeePercent();
+
+        // If fees are configured, a valid fee project must be specified — otherwise fee tokens get stuck
+        // because primaryTerminalOf(0, token) returns address(0).
+        if (feePercent > 0 && feeProjectId == 0) revert UniV4DeploymentSplitHook_FeePercentWithoutFeeProject();
 
         if (feeProjectId != 0) {
             address feeController = address(IJBDirectory(DIRECTORY).controllerOf(feeProjectId));
