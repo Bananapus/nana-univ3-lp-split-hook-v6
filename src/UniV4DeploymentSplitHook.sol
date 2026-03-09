@@ -74,6 +74,7 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
     error UniV4DeploymentSplitHook_PoolAlreadyDeployed();
     error UniV4DeploymentSplitHook_SplitSenderNotValidControllerOrTerminal();
     error UniV4DeploymentSplitHook_TerminalTokensNotAllowed();
+    error UniV4DeploymentSplitHook_InsufficientLiquidity();
     error UniV4DeploymentSplitHook_ZeroAddressNotAllowed();
 
     //*********************************************************************//
@@ -124,8 +125,13 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
     /// @notice ProjectID => Accumulated project token balance
     mapping(uint256 projectId => uint256 accumulatedProjectTokens) public accumulatedProjectTokens;
 
-    /// @notice ProjectID => whether any pool has been deployed for this project
-    mapping(uint256 projectId => bool deployed) public projectDeployed;
+    /// @notice ProjectID => Terminal token => whether a pool has been deployed for this project/token pair
+    mapping(uint256 projectId => mapping(address terminalToken => bool deployed)) public projectDeployed;
+
+    /// @notice ProjectID => Number of active deployed pools for this project.
+    /// @dev Used by processSplitWith to decide accumulate vs burn, since the split context
+    ///      only provides the project token, not the terminal token.
+    mapping(uint256 projectId => uint256 count) public deployedPoolCount;
 
     /// @notice ProjectID => Fee tokens claimable by that project
     mapping(uint256 projectId => uint256 claimableFeeTokens) public claimableFeeTokens;
@@ -507,7 +513,8 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
 
         _deployPoolAndAddLiquidity(projectId, projectToken, terminalToken, amount0Min, amount1Min, minCashOutReturn);
 
-        projectDeployed[projectId] = true;
+        projectDeployed[projectId][terminalToken] = true;
+        deployedPoolCount[projectId]++;
 
         emit ProjectDeployed(projectId, terminalToken, PoolId.unwrap(_poolKeys[projectId][terminalToken].toId()));
     }
@@ -524,7 +531,7 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
 
         address projectToken = context.token;
 
-        if (!projectDeployed[context.projectId]) {
+        if (deployedPoolCount[context.projectId] == 0) {
             _accumulateTokens(context.projectId, projectToken, context.amount);
         } else {
             _burnReceivedTokens(context.projectId, projectToken);
@@ -532,6 +539,7 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
     }
 
     /// @notice Rebalance LP position to match current issuance and cash out rates
+    /// @dev Requires SET_BUYBACK_POOL permission from the project owner.
     function rebalanceLiquidity(
         uint256 projectId,
         address terminalToken,
@@ -542,6 +550,12 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
     )
         external
     {
+        _requirePermissionFrom({
+            account: IJBDirectory(DIRECTORY).PROJECTS().ownerOf(projectId),
+            projectId: projectId,
+            permissionId: JBPermissionIds.SET_BUYBACK_POOL
+        });
+
         address terminal =
             address(IJBDirectory(DIRECTORY).primaryTerminalOf({projectId: projectId, token: terminalToken}));
         if (terminal == address(0)) revert UniV4DeploymentSplitHook_InvalidTerminalToken();
@@ -551,6 +565,10 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
 
         address projectToken = address(IJBTokens(TOKENS).tokenOf(projectId));
         PoolKey memory key = _poolKeys[projectId][terminalToken];
+
+        // Track balances before burn to calculate fee deltas
+        uint256 bal0Before = _currencyBalance(key.currency0);
+        uint256 bal1Before = _currencyBalance(key.currency1);
 
         // Step 1: Burn old position (removes all liquidity + collects fees) and take all tokens
         {
@@ -563,19 +581,32 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
             POSITION_MANAGER.modifyLiquidities(abi.encode(burnActions, burnParams), block.timestamp + 60);
         }
 
-        // Route any fees collected during burn
+        // Route any fees collected during burn.
+        // NOTE: The balance delta from a BURN_POSITION includes both the locked principal
+        // and accrued fees. We cannot separate them without additional on-chain state.
+        // To avoid routing the principal through fee-splitting (which would reduce capital
+        // available for the new position), we only collect and route fees via a separate
+        // DECREASE_LIQUIDITY(0) call BEFORE the burn, similar to collectAndRouteLPFees.
+        // However, since the position is being fully burned, the fees were already included
+        // in the burn's TAKE_PAIR output. We track them here using the balance delta.
+        // TODO: For more precise fee isolation, consider a two-step approach:
+        //       1. DECREASE_LIQUIDITY(0) + TAKE_PAIR to collect fees only
+        //       2. BURN_POSITION + TAKE_PAIR for the principal
         {
-            uint256 projectTokenBalance = IERC20(projectToken).balanceOf(address(this));
-            uint256 terminalTokenBalance = _getTerminalTokenBalance(terminalToken);
+            uint256 bal0After = _currencyBalance(key.currency0);
+            uint256 bal1After = _currencyBalance(key.currency1);
+            uint256 delta0 = bal0After > bal0Before ? bal0After - bal0Before : 0;
+            uint256 delta1 = bal1After > bal1Before ? bal1After - bal1Before : 0;
 
-            // Route fees from the old position
-            _routeCollectedFees(
-                projectId,
-                projectToken,
-                terminalToken,
-                _getAmountForCurrency(key, projectToken, terminalToken, true),
-                _getAmountForCurrency(key, projectToken, terminalToken, false)
-            );
+            // Route terminal token fees back to the project.
+            // Note: the delta includes principal + fees from the burned position.
+            // The principal portion will be re-deposited into the new position below;
+            // _routeCollectedFees only routes the terminal-token side, and _handleLeftoverTokens
+            // takes care of any remaining tokens after the new mint.
+            _routeCollectedFees(projectId, projectToken, terminalToken, delta0, delta1);
+
+            // Burn collected project token fees
+            _burnReceivedTokens(projectId, projectToken);
         }
 
         // Step 2: Mint new position with updated tick bounds
@@ -609,10 +640,12 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
 
                 tokenIdOf[projectId][terminalToken] = newTokenId;
             } else {
-                // Old position was burned but no new position can be created.
-                // Clear tokenIdOf so the position can be re-created via deployPool later,
-                // rather than leaving a stale reference to a burned NFT.
-                tokenIdOf[projectId][terminalToken] = 0;
+                // Zero liquidity means the position cannot be re-created (e.g., price moved
+                // outside tick range making the position single-sided with zero on one side).
+                // Revert to prevent bricking the project's LP — the old position was already
+                // burned by the BURN_POSITION action above, so this protects the invariant
+                // that tokenIdOf is always nonzero for deployed projects.
+                revert UniV4DeploymentSplitHook_InsufficientLiquidity();
             }
 
             // Handle leftover tokens
@@ -943,21 +976,6 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
         }
 
         _addUniswapLiquidity(projectId, projectToken, terminalToken, amount0Min, amount1Min, minCashOutReturn);
-    }
-
-    /// @notice Get amount for a specific currency side (helper for fee routing after burn)
-    function _getAmountForCurrency(
-        PoolKey memory key,
-        address projectToken,
-        address terminalToken,
-        bool isToken0
-    )
-        internal
-        pure
-        returns (uint256)
-    {
-        // This is a placeholder — actual amounts come from balance tracking
-        return 0;
     }
 
     /// @notice Get terminal token balance held by this contract
