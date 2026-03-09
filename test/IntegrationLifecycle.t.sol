@@ -48,7 +48,9 @@ contract IntegrationLifecycle is LPSplitHookV4TestBase {
         assertEq(hook.accumulatedProjectTokens(PROJECT_ID), 0, "accumulated should be 0 after deploy");
 
         // Verify projectDeployed is set
-        assertTrue(hook.projectDeployed(PROJECT_ID, address(terminalToken)), "projectDeployed should be true after deploy");
+        assertTrue(
+            hook.projectDeployed(PROJECT_ID, address(terminalToken)), "projectDeployed should be true after deploy"
+        );
 
         // Verify isPoolDeployed returns true
         assertTrue(

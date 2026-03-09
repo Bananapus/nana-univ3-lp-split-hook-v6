@@ -124,7 +124,9 @@ contract NativeETHTest is LPSplitHookV4TestBase {
         assertEq(hook.accumulatedProjectTokens(PROJECT_ID), accAmount, "Accumulated tokens should match minted amount");
 
         // Verify the project has not been deployed yet (no pool exists)
-        assertFalse(hook.projectDeployed(PROJECT_ID, NATIVE_TOKEN), "Project should not be deployed yet (no deployPool called)");
+        assertFalse(
+            hook.projectDeployed(PROJECT_ID, NATIVE_TOKEN), "Project should not be deployed yet (no deployPool called)"
+        );
         assertFalse(hook.isPoolDeployed(PROJECT_ID, NATIVE_TOKEN), "No pool should exist for NATIVE_TOKEN yet");
     }
 

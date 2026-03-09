@@ -142,18 +142,10 @@ contract AuditFindingsTest is LPSplitHookV4TestBase {
 
         // Verify routing targets the fee project
         if (terminal.payCallCount() > payCountBefore) {
-            assertEq(
-                terminal.lastPayProjectId(),
-                FEE_PROJECT_ID,
-                "Fee payment should target FEE_PROJECT_ID"
-            );
+            assertEq(terminal.lastPayProjectId(), FEE_PROJECT_ID, "Fee payment should target FEE_PROJECT_ID");
             // The pay amount is FEE_PERCENT of the total terminal token balance delta
             // (principal + fees), not just the fee portion.
-            assertGt(
-                terminal.lastPayAmount(),
-                0,
-                "Fee payment amount should be nonzero"
-            );
+            assertGt(terminal.lastPayAmount(), 0, "Fee payment amount should be nonzero");
         }
     }
 
@@ -180,9 +172,7 @@ contract AuditFindingsTest is LPSplitHookV4TestBase {
 
         uint256 claimableAfter = hook.claimableFeeTokens(PROJECT_ID);
         assertGt(
-            claimableAfter,
-            claimableBefore,
-            "claimableFeeTokens should increase after rebalance with fees (M-1 fix)"
+            claimableAfter, claimableBefore, "claimableFeeTokens should increase after rebalance with fees (M-1 fix)"
         );
     }
 
@@ -265,18 +255,14 @@ contract AuditFindingsTest is LPSplitHookV4TestBase {
     function test_M2_multiTerminalToken_independentFlags() public {
         // PROJECT_ID already has a pool for terminalToken
         assertTrue(
-            hook.projectDeployed(PROJECT_ID, address(terminalToken)),
-            "First terminal token pool should be deployed"
+            hook.projectDeployed(PROJECT_ID, address(terminalToken)), "First terminal token pool should be deployed"
         );
 
         // Set up a second terminal token
         MockERC20 secondTerminalToken = new MockERC20("Second Terminal", "TERM2", 18);
         _setDirectoryTerminal(PROJECT_ID, address(secondTerminalToken), address(terminal));
         terminal.setAccountingContext(
-            PROJECT_ID,
-            address(secondTerminalToken),
-            uint32(uint160(address(secondTerminalToken))),
-            18
+            PROJECT_ID, address(secondTerminalToken), uint32(uint160(address(secondTerminalToken))), 18
         );
         terminal.addAccountingContext(
             PROJECT_ID,
@@ -295,8 +281,7 @@ contract AuditFindingsTest is LPSplitHookV4TestBase {
 
         // The first terminal token should still be deployed
         assertTrue(
-            hook.projectDeployed(PROJECT_ID, address(terminalToken)),
-            "First terminal token should still be deployed"
+            hook.projectDeployed(PROJECT_ID, address(terminalToken)), "First terminal token should still be deployed"
         );
 
         // Note: processSplitWith limitation -- it uses deployedPoolCount (per-project) to decide

@@ -336,7 +336,9 @@ contract SecurityTest is LPSplitHookV4TestBase {
         assertTrue(positionManager.mintCallCount() > 0, "PositionManager mint should have been called");
 
         // Verify projectDeployed is set
-        assertTrue(hook.projectDeployed(PROJECT_ID, address(terminalToken)), "projectDeployed should be true after deployment");
+        assertTrue(
+            hook.projectDeployed(PROJECT_ID, address(terminalToken)), "projectDeployed should be true after deployment"
+        );
     }
 
     // ─────────────────────────────────────────────────────────────────────
