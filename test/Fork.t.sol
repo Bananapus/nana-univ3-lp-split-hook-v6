@@ -26,6 +26,7 @@ import {JBSplitGroup} from "@bananapus/core-v6/src/structs/JBSplitGroup.sol";
 import {JBFundAccessLimitGroup} from "@bananapus/core-v6/src/structs/JBFundAccessLimitGroup.sol";
 import {IJBRulesetApprovalHook} from "@bananapus/core-v6/src/interfaces/IJBRulesetApprovalHook.sol";
 import {IJBToken} from "@bananapus/core-v6/src/interfaces/IJBToken.sol";
+import {JBRuleset} from "@bananapus/core-v6/src/structs/JBRuleset.sol";
 
 // Uniswap V4.
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
@@ -305,7 +306,7 @@ contract LPSplitHookForkTest is Test {
 
     function _launchProject(bool withOwnerMinting) internal returns (uint256 id) {
         JBRulesetMetadata memory metadata = JBRulesetMetadata({
-            reservedPercent: withOwnerMinting ? 1000 : 0, // 10% reserved for test project.
+            reservedPercent: withOwnerMinting ? 1000 : 0,
             cashOutTaxRate: 0,
             baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
             pausePay: false,
@@ -329,7 +330,7 @@ contract LPSplitHookForkTest is Test {
         JBRulesetConfig[] memory rulesetConfigs = new JBRulesetConfig[](1);
         rulesetConfigs[0].mustStartAtOrAfter = 0;
         rulesetConfigs[0].duration = 0;
-        rulesetConfigs[0].weight = 1_000_000e18; // 1M tokens per ETH.
+        rulesetConfigs[0].weight = 1_000_000e18;
         rulesetConfigs[0].weightCutPercent = 0;
         rulesetConfigs[0].approvalHook = IJBRulesetApprovalHook(address(0));
         rulesetConfigs[0].metadata = metadata;
@@ -351,5 +352,81 @@ contract LPSplitHookForkTest is Test {
             terminalConfigurations: terminalConfigs,
             memo: ""
         });
+    }
+
+    // ───────────────────────── Weight Decay Permissionless Deploy
+    // ──────
+
+    /// @notice Deploy pool as a random user after weight has decayed 10x via ruleset cycling.
+    function test_fork_deployPool_permissionlessAfterWeightDecay() public {
+        // The setUp already launched the project with weight=1_000_000e18, duration=0, weightCutPercent=0.
+        // Queue a new ruleset with duration and weight cut so weight decays over time.
+        JBRulesetMetadata memory newMeta = JBRulesetMetadata({
+            reservedPercent: 1000,
+            cashOutTaxRate: 0,
+            baseCurrency: uint32(uint160(JBConstants.NATIVE_TOKEN)),
+            pausePay: false,
+            pauseCreditTransfers: false,
+            allowOwnerMinting: true,
+            allowSetCustomToken: true,
+            allowTerminalMigration: false,
+            allowSetTerminals: false,
+            allowSetController: false,
+            allowAddAccountingContext: false,
+            allowAddPriceFeed: false,
+            ownerMustSendPayouts: false,
+            holdFees: false,
+            useTotalSurplusForCashOuts: false,
+            useDataHookForPay: false,
+            useDataHookForCashOut: false,
+            dataHook: address(0),
+            metadata: 0
+        });
+
+        JBRulesetConfig[] memory newConfigs = new JBRulesetConfig[](1);
+        newConfigs[0].mustStartAtOrAfter = 0;
+        newConfigs[0].duration = 1 days;
+        newConfigs[0].weight = 1_000_000e18;
+        newConfigs[0].weightCutPercent = 800_000_000; // 80% cut per cycle
+        newConfigs[0].approvalHook = IJBRulesetApprovalHook(address(0));
+        newConfigs[0].metadata = newMeta;
+        newConfigs[0].splitGroups = new JBSplitGroup[](0);
+        newConfigs[0].fundAccessLimitGroups = new JBFundAccessLimitGroup[](0);
+
+        vm.prank(multisig);
+        jbController.queueRulesetsOf(projectId, newConfigs, "");
+
+        // Warp 3 days: cycle0=1M, cycle1=200k (5x), cycle2=40k (25x > 10x threshold)
+        vm.warp(block.timestamp + 3 days);
+
+        // Verify initial weight was recorded during setUp's processSplitWith
+        uint256 initialWeight = hook.initialWeightOf(projectId);
+        assertTrue(initialWeight > 0, "initialWeightOf should be set from setUp accumulation");
+
+        // Verify current weight has decayed sufficiently
+        (JBRuleset memory currentRuleset,) = jbController.currentRulesetOf(projectId);
+        assertTrue(currentRuleset.weight * 10 <= initialWeight, "weight should have decayed >= 10x");
+
+        // Random user should be able to deploy permissionlessly
+        address randomUser = makeAddr("randomDeployer");
+        vm.prank(randomUser);
+        hook.deployPool(projectId, JBConstants.NATIVE_TOKEN, 0, 0, 0);
+
+        // Verify pool was deployed
+        assertTrue(hook.isPoolDeployed(projectId, JBConstants.NATIVE_TOKEN), "pool should be deployed by random user");
+        uint256 tokenId = hook.tokenIdOf(projectId, JBConstants.NATIVE_TOKEN);
+        assertTrue(tokenId != 0, "should hold a position NFT");
+    }
+
+    /// @notice Random user cannot deploy when weight hasn't decayed enough.
+    function test_fork_deployPool_requiresPermissionBeforeDecay() public {
+        // The setUp launched with weight=1_000_000e18, no decay.
+        // initialWeightOf was set to 1_000_000e18 during processSplitWith.
+        // Current weight == initial weight, so permission is required.
+
+        address randomUser = makeAddr("randomDeployer");
+        vm.prank(randomUser);
+        vm.expectRevert();
+        hook.deployPool(projectId, JBConstants.NATIVE_TOKEN, 0, 0, 0);
     }
 }
