@@ -94,14 +94,7 @@ contract LPSplitHookForkTest is Test {
     receive() external payable {}
 
     function setUp() public {
-        // Skip fork tests when the RPC URL is not available.
-        string memory rpcUrl = vm.envOr("RPC_ETHEREUM_MAINNET", string(""));
-        if (bytes(rpcUrl).length == 0) {
-            vm.skip(true);
-            return;
-        }
-
-        vm.createSelectFork(rpcUrl);
+        vm.createSelectFork("ethereum");
 
         // Verify V4 contracts exist on this fork.
         require(address(V4_POOL_MANAGER).code.length > 0, "PoolManager not deployed");
