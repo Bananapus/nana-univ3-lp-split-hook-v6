@@ -3,9 +3,9 @@ pragma solidity 0.8.26;
 
 import {LPSplitHookV4TestBase} from "./TestBaseV4.sol";
 import {UniV4DeploymentSplitHook} from "../src/UniV4DeploymentSplitHook.sol";
-import {IJBPermissions} from "@bananapus/core/interfaces/IJBPermissions.sol";
-import {JBConstants} from "@bananapus/core/libraries/JBConstants.sol";
-import {JBAccountingContext} from "@bananapus/core/structs/JBAccountingContext.sol";
+import {IJBPermissions} from "@bananapus/core-v6/src/interfaces/IJBPermissions.sol";
+import {JBConstants} from "@bananapus/core-v6/src/libraries/JBConstants.sol";
+import {JBAccountingContext} from "@bananapus/core-v6/src/structs/JBAccountingContext.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
 

@@ -3,7 +3,7 @@ pragma solidity 0.8.26;
 
 import {LPSplitHookV4TestBase} from "./TestBaseV4.sol";
 import {UniV4DeploymentSplitHook} from "../src/UniV4DeploymentSplitHook.sol";
-import {IJBPermissions} from "@bananapus/core/interfaces/IJBPermissions.sol";
+import {IJBPermissions} from "@bananapus/core-v6/src/interfaces/IJBPermissions.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
 import {mulDiv, sqrt} from "@prb/math/src/Common.sol";

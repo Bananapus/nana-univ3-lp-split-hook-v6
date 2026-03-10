@@ -4,7 +4,7 @@ pragma solidity 0.8.26;
 import {LPSplitHookV4TestBase} from "./TestBaseV4.sol";
 import {UniV4DeploymentSplitHook} from "../src/UniV4DeploymentSplitHook.sol";
 import {IUniV4DeploymentSplitHook} from "../src/interfaces/IUniV4DeploymentSplitHook.sol";
-import {JBPermissionIds} from "@bananapus/permission-ids/JBPermissionIds.sol";
+import {JBPermissionIds} from "@bananapus/permission-ids-v6/src/JBPermissionIds.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /// @notice Tests for UniV4DeploymentSplitHook fee routing logic.

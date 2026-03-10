@@ -3,9 +3,9 @@ pragma solidity 0.8.26;
 
 import {LPSplitHookV4TestBase} from "./TestBaseV4.sol";
 import {UniV4DeploymentSplitHook} from "../src/UniV4DeploymentSplitHook.sol";
-import {JBPermissionIds} from "@bananapus/permission-ids/JBPermissionIds.sol";
-import {JBSplitHookContext} from "@bananapus/core/structs/JBSplitHookContext.sol";
-import {JBAccountingContext} from "@bananapus/core/structs/JBAccountingContext.sol";
+import {JBPermissionIds} from "@bananapus/permission-ids-v6/src/JBPermissionIds.sol";
+import {JBSplitHookContext} from "@bananapus/core-v6/src/structs/JBSplitHookContext.sol";
+import {JBAccountingContext} from "@bananapus/core-v6/src/structs/JBAccountingContext.sol";
 import {MockERC20} from "./mock/MockERC20.sol";
 
 /// @notice Regression tests for rebalance authorization, fee routing, and per-token deployment flags.
