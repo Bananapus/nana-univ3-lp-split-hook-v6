@@ -94,7 +94,7 @@ contract LPSplitHookForkTest is Test {
     receive() external payable {}
 
     function setUp() public {
-        vm.createSelectFork("ethereum");
+        vm.createSelectFork("ethereum", 21_700_000);
 
         // Verify V4 contracts exist on this fork.
         require(address(V4_POOL_MANAGER).code.length > 0, "PoolManager not deployed");
