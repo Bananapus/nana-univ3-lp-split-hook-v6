@@ -6,7 +6,6 @@ import {UniV4DeploymentSplitHook} from "../src/UniV4DeploymentSplitHook.sol";
 import {IJBPermissions} from "@bananapus/core-v6/src/interfaces/IJBPermissions.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
-import {mulDiv, sqrt} from "@prb/math/src/Common.sol";
 
 /// @notice Wrapper that exposes internal price math functions for testing.
 contract TestableUniV4DeploymentSplitHook is UniV4DeploymentSplitHook {

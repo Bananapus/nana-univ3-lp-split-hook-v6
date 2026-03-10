@@ -8,12 +8,10 @@ import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
 import {JBAddressRegistry} from "@bananapus/address-registry-v6/src/JBAddressRegistry.sol";
 import {IJBAddressRegistry} from "@bananapus/address-registry-v6/src/interfaces/IJBAddressRegistry.sol";
-import {LibClone} from "solady/src/utils/LibClone.sol";
 
 import {UniV4DeploymentSplitHook} from "../src/UniV4DeploymentSplitHook.sol";
 import {UniV4DeploymentSplitHookDeployer} from "../src/UniV4DeploymentSplitHookDeployer.sol";
 import {IUniV4DeploymentSplitHook} from "../src/interfaces/IUniV4DeploymentSplitHook.sol";
-import {IUniV4DeploymentSplitHookDeployer} from "../src/interfaces/IUniV4DeploymentSplitHookDeployer.sol";
 
 import {MockJBDirectory, MockJBPermissions} from "./mock/MockJBContracts.sol";
 

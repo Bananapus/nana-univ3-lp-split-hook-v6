@@ -3,14 +3,13 @@ pragma solidity 0.8.26;
 
 import {LPSplitHookV4TestBase} from "../TestBaseV4.sol";
 import {UniV4DeploymentSplitHook} from "../../src/UniV4DeploymentSplitHook.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /// @notice tokenIdOf becomes stale when rebalance yields zero liquidity.
 /// @dev rebalanceLiquidity now reverts with InsufficientLiquidity when
 ///      the new position would have zero liquidity, rather than silently zeroing tokenIdOf.
 ///      This prevents the bricking scenario where tokenIdOf=0 + projectDeployed=true creates
 ///      a permanent circular dependency.
-contract M31_StaleTokenIdOfTest is LPSplitHookV4TestBase {
+contract StaleTokenIdOfTest is LPSplitHookV4TestBase {
     uint256 poolTokenId;
 
     function setUp() public override {

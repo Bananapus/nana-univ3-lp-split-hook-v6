@@ -105,9 +105,12 @@ contract NativeETHTest is LPSplitHookV4TestBase {
         _setDirectoryTerminal(PROJECT_ID, NATIVE_TOKEN, address(terminal));
 
         // --- Add an accounting context for NATIVE_TOKEN (18 decimals, currency = sentinel) ---
+        // forge-lint: disable-next-line(unsafe-typecast)
+        // Safe: NATIVE_TOKEN sentinel address is a known constant that fits in uint32.
         terminal.setAccountingContext(PROJECT_ID, NATIVE_TOKEN, uint32(uint160(NATIVE_TOKEN)), 18);
         terminal.addAccountingContext(
             PROJECT_ID,
+            // forge-lint: disable-next-line(unsafe-typecast)
             JBAccountingContext({token: NATIVE_TOKEN, decimals: 18, currency: uint32(uint160(NATIVE_TOKEN))})
         );
 
@@ -143,9 +146,12 @@ contract NativeETHTest is LPSplitHookV4TestBase {
         _addDirectoryTerminal(PROJECT_ID, address(terminal));
 
         // Add accounting context for NATIVE_TOKEN
+        // forge-lint: disable-next-line(unsafe-typecast)
+        // Safe: NATIVE_TOKEN sentinel address is a known constant that fits in uint32.
         terminal.setAccountingContext(PROJECT_ID, NATIVE_TOKEN, uint32(uint160(NATIVE_TOKEN)), 18);
         terminal.addAccountingContext(
             PROJECT_ID,
+            // forge-lint: disable-next-line(unsafe-typecast)
             JBAccountingContext({token: NATIVE_TOKEN, decimals: 18, currency: uint32(uint160(NATIVE_TOKEN))})
         );
 

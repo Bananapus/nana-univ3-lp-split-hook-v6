@@ -9,7 +9,6 @@ import {JBSplit} from "@bananapus/core-v6/src/structs/JBSplit.sol";
 import {JBSplitHookContext} from "@bananapus/core-v6/src/structs/JBSplitHookContext.sol";
 import {JBAccountingContext} from "@bananapus/core-v6/src/structs/JBAccountingContext.sol";
 import {IJBSplitHook} from "@bananapus/core-v6/src/interfaces/IJBSplitHook.sol";
-import {JBConstants} from "@bananapus/core-v6/src/libraries/JBConstants.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
 
@@ -38,6 +37,8 @@ contract MockPermit2 {
 
     function transferFrom(address from, address to, uint160 amount, address token) external {
         allowances[from][token][msg.sender] -= amount;
+        // forge-lint: disable-next-line(erc20-unchecked-transfer)
+        // Test mock: return value not checked intentionally.
         IERC20(token).transferFrom(from, to, amount);
     }
 }

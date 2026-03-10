@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -22,13 +21,11 @@ import {IJBMultiTerminal} from "@bananapus/core-v6/src/interfaces/IJBMultiTermin
 import {IJBPermissions} from "@bananapus/core-v6/src/interfaces/IJBPermissions.sol";
 import {IJBSplitHook} from "@bananapus/core-v6/src/interfaces/IJBSplitHook.sol";
 import {IJBTerminal} from "@bananapus/core-v6/src/interfaces/IJBTerminal.sol";
-import {IJBTerminalStore} from "@bananapus/core-v6/src/interfaces/IJBTerminalStore.sol";
 import {IJBTokens} from "@bananapus/core-v6/src/interfaces/IJBTokens.sol";
 import {JBConstants} from "@bananapus/core-v6/src/libraries/JBConstants.sol";
 import {JBRulesetMetadataResolver} from "@bananapus/core-v6/src/libraries/JBRulesetMetadataResolver.sol";
 import {JBAccountingContext} from "@bananapus/core-v6/src/structs/JBAccountingContext.sol";
 import {JBRuleset} from "@bananapus/core-v6/src/structs/JBRuleset.sol";
-import {JBRulesetMetadata} from "@bananapus/core-v6/src/structs/JBRulesetMetadata.sol";
 import {JBSplitHookContext} from "@bananapus/core-v6/src/structs/JBSplitHookContext.sol";
 import {JBPermissionIds} from "@bananapus/permission-ids-v6/src/JBPermissionIds.sol";
 
@@ -612,6 +609,8 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
             bytes memory burnActions = abi.encodePacked(uint8(Actions.BURN_POSITION), uint8(Actions.TAKE_PAIR));
 
             bytes[] memory burnParams = new bytes[](2);
+            // forge-lint: disable-next-line(unsafe-typecast)
+            // Safe: min amounts are user-provided slippage params; PositionManager accepts uint128.
             burnParams[0] = abi.encode(tokenId, uint128(decreaseAmount0Min), uint128(decreaseAmount1Min), "");
             burnParams[1] = abi.encode(key.currency0, key.currency1, address(this));
 
@@ -772,6 +771,8 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
 
     /// @notice Align tick to tick spacing using proper floor semantics for negative ticks
     function _alignTickToSpacing(int24 tick, int24 spacing) internal pure returns (int24 alignedTick) {
+        // forge-lint: disable-next-line(divide-before-multiply)
+        // Intentional: integer floor-division to nearest tick spacing boundary.
         int24 rounded = (tick / spacing) * spacing;
         if (tick < 0 && rounded > tick) {
             rounded -= spacing;
@@ -1057,6 +1058,8 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
         );
 
         bytes[] memory params = new bytes[](5);
+        // forge-lint: disable-next-line(unsafe-typecast)
+        // Safe: amount0/amount1 are bounded by token balances which fit in uint128.
         params[0] = abi.encode(
             key, tickLower, tickUpper, uint256(liquidity), uint128(amount0), uint128(amount1), address(this), ""
         );
@@ -1075,6 +1078,8 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
     /// @notice Approve an ERC20 token via Permit2 so PositionManager can pull it during SETTLE.
     function _approveViaPermit2(address token, uint256 amount) internal {
         IERC20(token).forceApprove(address(PERMIT2), amount);
+        // forge-lint: disable-next-line(unsafe-typecast)
+        // Safe: amount is bounded by token balance (fits uint160); block.timestamp + 60 fits uint48.
         PERMIT2.approve(token, address(POSITION_MANAGER), uint160(amount), uint48(block.timestamp + 60));
     }
 

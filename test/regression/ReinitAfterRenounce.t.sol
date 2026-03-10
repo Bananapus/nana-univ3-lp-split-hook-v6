@@ -13,17 +13,13 @@ import {MockPositionManager} from "../mock/MockPositionManager.sol";
 import {
     MockJBDirectory,
     MockJBController,
-    MockJBMultiTerminal,
     MockJBTokens,
-    MockJBPrices,
-    MockJBTerminalStore,
-    MockJBProjects,
     MockJBPermissions
 } from "../mock/MockJBContracts.sol";
 
 /// @notice Re-initialization protection.
 /// @dev The `initialized` boolean prevents calling initialize() more than once.
-contract M32_ReinitAfterRenounceTest is Test {
+contract ReinitAfterRenounceTest is Test {
     UniV4DeploymentSplitHook public hookImpl;
     UniV4DeploymentSplitHook public hook;
     MockJBDirectory public directory;

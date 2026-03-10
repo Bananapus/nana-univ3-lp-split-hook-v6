@@ -9,7 +9,7 @@ import {JBAccountingContext} from "@bananapus/core-v6/src/structs/JBAccountingCo
 import {MockERC20} from "./mock/MockERC20.sol";
 
 /// @notice Regression tests for rebalance authorization, fee routing, and per-token deployment flags.
-contract AuditFindingsTest is LPSplitHookV4TestBase {
+contract SplitHookRegressionsTest is LPSplitHookV4TestBase {
     uint256 poolTokenId;
     bool terminalTokenIsToken0;
 
@@ -81,6 +81,8 @@ contract AuditFindingsTest is LPSplitHookV4TestBase {
         // Drain all tokens from PositionManager and hook so burn returns 0
         uint256 pmProjectBal = projectToken.balanceOf(address(positionManager));
         uint256 pmTerminalBal = terminalToken.balanceOf(address(positionManager));
+        // forge-lint: disable-next-line(erc20-unchecked-transfer)
+        // Test helper: draining mock balances; return value not relevant.
         vm.startPrank(address(positionManager));
         if (pmProjectBal > 0) projectToken.transfer(address(0xdead), pmProjectBal);
         if (pmTerminalBal > 0) terminalToken.transfer(address(0xdead), pmTerminalBal);
@@ -88,6 +90,8 @@ contract AuditFindingsTest is LPSplitHookV4TestBase {
 
         uint256 hookProjectBal = projectToken.balanceOf(address(hook));
         uint256 hookTerminalBal = terminalToken.balanceOf(address(hook));
+        // forge-lint: disable-next-line(erc20-unchecked-transfer)
+        // Test helper: draining mock balances; return value not relevant.
         vm.startPrank(address(hook));
         if (hookProjectBal > 0) projectToken.transfer(address(0xdead), hookProjectBal);
         if (hookTerminalBal > 0) terminalToken.transfer(address(0xdead), hookTerminalBal);

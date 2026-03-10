@@ -4,7 +4,7 @@ pragma solidity 0.8.26;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IAllowanceTransfer} from "@uniswap/permit2/src/interfaces/IAllowanceTransfer.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
-import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
+import {PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {Currency, CurrencyLibrary} from "@uniswap/v4-core/src/types/Currency.sol";
 import {Actions} from "@uniswap/v4-periphery/src/libraries/Actions.sol";
 import {PositionInfo} from "@uniswap/v4-periphery/src/libraries/PositionInfoLibrary.sol";
@@ -158,6 +158,8 @@ contract MockPositionManager {
         uint256 amount0Used = (uint256(amount0Max) * usagePercent) / 10_000;
         uint256 amount1Used = (uint256(amount1Max) * usagePercent) / 10_000;
 
+        // forge-lint: disable-next-line(unsafe-typecast)
+        // Safe: test mock; liquidity values in tests are always within uint128 range.
         _positions[tokenId] = Position({
             poolKey: key,
             tickLower: tickLower,
@@ -232,6 +234,8 @@ contract MockPositionManager {
         address token0 = Currency.unwrap(pos.poolKey.currency0);
         address token1 = Currency.unwrap(pos.poolKey.currency1);
 
+        // forge-lint: disable-next-line(unsafe-typecast)
+        // Safe: test mock; liquidity values in tests always fit in uint128.
         if (liquidity > 0) {
             // Calculate the pro-rata share of locked tokens being removed.
             uint256 fraction0;
