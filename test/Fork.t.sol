@@ -34,6 +34,9 @@ import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionMa
 import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
+import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
+import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
 import {IPermit2} from "@uniswap/permit2/src/interfaces/IPermit2.sol";
 
 // Hook under test.
@@ -384,6 +387,61 @@ contract LPSplitHookForkTest is Test {
             terminalConfigurations: terminalConfigs,
             memo: ""
         });
+    }
+
+    // ───────────────────────── Existing Pool (pre-initialized)
+    // ─────────────
+
+    /// @notice When the pool was already initialized by another party (e.g. REVDeployer)
+    ///         at a different sqrtPrice than _computeInitialSqrtPrice would return,
+    ///         deployPool should still succeed by reading the pool's actual price via getSlot0.
+    function test_fork_deployPool_existingPool_addsLiquidity() public {
+        // Build the same pool key the hook will use.
+        address projToken = address(projectToken);
+        Currency termCurrency = Currency.wrap(address(0)); // native ETH
+        Currency projCurrency = Currency.wrap(projToken);
+
+        (Currency currency0, Currency currency1) =
+            termCurrency < projCurrency ? (termCurrency, projCurrency) : (projCurrency, termCurrency);
+
+        PoolKey memory key = PoolKey({
+            currency0: currency0,
+            currency1: currency1,
+            fee: hook.POOL_FEE(),
+            tickSpacing: hook.TICK_SPACING(),
+            hooks: IHooks(address(0))
+        });
+
+        // Initialize the pool externally at the issuance rate price (different from the
+        // geometric mean that _computeInitialSqrtPrice would compute).
+        // Use a price that's clearly different from the midpoint.
+        uint160 externalSqrtPrice = TickMath.getSqrtPriceAtTick(int24(69000));
+        V4_POSITION_MANAGER.initializePool(key, externalSqrtPrice);
+
+        // Verify pool is initialized with our external price.
+        PoolId poolId = key.toId();
+        (uint160 sqrtPriceBefore,,,) = V4_POOL_MANAGER.getSlot0(poolId);
+        assertEq(sqrtPriceBefore, externalSqrtPrice, "pool should be at external price");
+
+        // Now deploy via the hook — it should detect the existing pool and use its actual price.
+        vm.prank(multisig);
+        hook.deployPool(projectId, JBConstants.NATIVE_TOKEN, 0, 0, 0);
+
+        // Verify deployment succeeded.
+        assertTrue(hook.isPoolDeployed(projectId, JBConstants.NATIVE_TOKEN), "pool should be deployed");
+        uint256 tokenId = hook.tokenIdOf(projectId, JBConstants.NATIVE_TOKEN);
+        assertTrue(tokenId != 0, "should hold a position NFT");
+
+        // Verify position has liquidity.
+        uint128 posLiq = V4_POSITION_MANAGER.getPositionLiquidity(tokenId);
+        assertTrue(posLiq > 0, "position should have liquidity in existing pool");
+
+        // Verify the pool price didn't change (adding liquidity doesn't move the price).
+        (uint160 sqrtPriceAfter,,,) = V4_POOL_MANAGER.getSlot0(poolId);
+        assertEq(sqrtPriceAfter, sqrtPriceBefore, "pool price should not change from liquidity add");
+
+        // Accumulated tokens should be cleared.
+        assertEq(hook.accumulatedProjectTokens(projectId), 0, "accumulated should be 0 after deploy");
     }
 
     // ───────────────────────── Weight Decay Permissionless Deploy
