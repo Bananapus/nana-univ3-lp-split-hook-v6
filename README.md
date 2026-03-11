@@ -50,7 +50,7 @@ This ensures the AMM price always trades within the project's intrinsic economic
 
 ### Pool Pricing
 
-The initial pool price is set at the **geometric mean** of the cash-out and issuance rate ticks. This centers the LP position in the economic range, creating balanced exposure to both sides. If the cash-out rate is zero (no surplus), the pool initializes at the issuance rate.
+The initial pool price is set at the **geometric mean** of the cash-out and issuance rate ticks. This centers the LP position in the economic range, creating balanced exposure to both sides. If the cash-out rate is zero (no surplus), the pool initializes at the issuance rate. When the pool is already initialized (e.g., by REVDeployer at 1:1 price), the hook reads the actual pool price via `getSlot0` instead of computing a new initial price.
 
 ### Optimal Cash-Out Calculation
 

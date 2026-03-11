@@ -126,7 +126,8 @@ Juicebox reserved-token split hook that accumulates project tokens, deploys a Un
 | `tokenIdOf` | `projectId => terminalToken => uint256` | V4 PositionManager NFT ID per pool |
 | `accumulatedProjectTokens` | `projectId => uint256` | Pre-deployment token accumulation |
 | `initialWeightOf` | `projectId => uint256` | Ruleset weight when first tokens were accumulated (for 10x decay check) |
-| `projectDeployed` | `projectId => bool` | Switches accumulate (Stage 1) to burn (Stage 2) |
+| `projectDeployed` | `projectId => terminalToken => bool` | Whether a V4 pool has been deployed for this project/token pair |
+| `deployedPoolCount` | `projectId => uint256` | Number of pools deployed for project (used for accumulate vs burn decision in processSplitWith) |
 | `claimableFeeTokens` | `projectId => uint256` | Fee-project tokens claimable via `claimFeeTokensFor` |
 | `initialized` | `bool` | Prevents re-initialization of clone instances |
 
