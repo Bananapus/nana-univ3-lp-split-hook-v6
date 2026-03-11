@@ -668,7 +668,7 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
     //*********************************************************************//
 
     /// @notice Accumulate project tokens in accumulation stage
-    function _accumulateTokens(uint256 projectId, address projectToken, uint256 amount) internal {
+    function _accumulateTokens(uint256 projectId, address, uint256 amount) internal {
         accumulatedProjectTokens[projectId] += amount;
     }
 
@@ -1027,8 +1027,8 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
         uint128 liquidity,
         uint256 amount0,
         uint256 amount1,
-        uint256 amount0Min,
-        uint256 amount1Min
+        uint256,
+        uint256
     )
         internal
     {
