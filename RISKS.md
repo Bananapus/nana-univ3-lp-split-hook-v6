@@ -1,13 +1,13 @@
 # univ4-lp-split-hook-v6 -- Risks
 
-Deep implementation-level risk analysis. Line references are to `src/UniV4DeploymentSplitHook.sol` unless otherwise noted.
+Deep implementation-level risk analysis. Line references are to `src/JBUniswapV4LPSplitHook.sol` unless otherwise noted.
 
 ## Trust Assumptions
 
 1. **Project Owner** -- Can trigger pool deployment (`deployPool`, line 491) and manage LP positions (`rebalanceLiquidity`, line 559). Has `SET_BUYBACK_POOL` permission and can delegate it. Cannot modify fee configuration post-initialization.
-2. **Uniswap V4 Pool Manager + Position Manager** -- LP positions are managed through V4 PositionManager (immutable at line 107). Pool manager bugs or governance changes could affect all positions managed by this hook. The hook has no way to migrate positions to a different V4 deployment.
+2. **Uniswap V4 Pool Manager + Position Manager + Oracle Hook** -- LP positions are managed through V4 PositionManager (immutable at line 107). All pools are created with `ORACLE_HOOK` (immutable at line 114), which is set in the `PoolKey.hooks` field. Pool manager, position manager, or oracle hook bugs or governance changes could affect all positions managed by this hook. The hook has no way to migrate positions to a different V4 deployment or change the oracle hook.
 3. **JB Core Protocol** -- The hook trusts that `controllerOf(projectId)` returns the legitimate controller (line 537-539), that `processSplitWith` is called with accurate `context.amount` (line 534), and that `primaryTerminalOf` resolves correctly (line 236, 346-347, 521-522). Compromise of the JB directory would break all assumptions.
-4. **Price Oracle (Implicit)** -- Initial pool price is derived from the project's bonding curve rates via `currentReclaimableSurplusOf` (line 238) and `currentRulesetOf` weight (line 290, 344, 401). These are on-chain reads, not external oracle feeds. Manipulation requires changing the project's actual surplus or ruleset weight.
+4. **Price Oracle** -- Initial pool price is derived from the project's bonding curve rates via `currentReclaimableSurplusOf` (line 238) and `currentRulesetOf` weight (line 290, 344, 401). These are on-chain reads, not external oracle feeds. Manipulation requires changing the project's actual surplus or ruleset weight. All pools are created with `ORACLE_HOOK` (an `IHooks` set in the constructor, line 114/183) which provides TWAP pricing via `observe()`. The oracle hook is set in the `PoolKey.hooks` field (line 966) and processes swap callbacks for all deployed pools. A bug or governance change in the oracle hook could affect swap behavior for all pools.
 5. **Fee Project** -- The `FEE_PROJECT_ID` must have a functioning terminal that accepts the terminal token. If the fee project's terminal disappears or reverts, fee routing silently fails (the terminal check at line 1105 returns early, and the fee amount is retained in the contract).
 
 ## Audit History

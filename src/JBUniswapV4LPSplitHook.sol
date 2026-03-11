@@ -32,11 +32,11 @@ import {JBPermissionIds} from "@bananapus/permission-ids-v6/src/JBPermissionIds.
 
 import {IAllowanceTransfer} from "@uniswap/permit2/src/interfaces/IAllowanceTransfer.sol";
 
-import {IUniV4DeploymentSplitHook} from "./interfaces/IUniV4DeploymentSplitHook.sol";
+import {IJBUniswapV4LPSplitHook} from "./interfaces/IJBUniswapV4LPSplitHook.sol";
 
 /// @custom:benediction DEVS BENEDICAT ET PROTEGAT CONTRACTVS MEAM
 /**
- * @title UniV4DeploymentSplitHook
+ * @title JBUniswapV4LPSplitHook
  * @notice JuiceboxV4 IJBSplitHook contract that manages a two-stage deployment process:
  *
  * Before pool deployment:
@@ -53,7 +53,7 @@ import {IUniV4DeploymentSplitHook} from "./interfaces/IUniV4DeploymentSplitHook.
  * @dev For any given Uniswap V4 pool, the contract will control a single LP position.
  * @dev Pool deployment requires SET_BUYBACK_POOL permission from the project owner.
  */
-contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JBPermissioned {
+contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPermissioned {
     using JBRulesetMetadataResolver for JBRuleset;
     using SafeERC20 for IERC20;
     using PoolIdLibrary for PoolKey;
@@ -64,19 +64,19 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
     // --------------------------- custom errors ------------------------- //
     //*********************************************************************//
 
-    error UniV4DeploymentSplitHook_AlreadyInitialized();
-    error UniV4DeploymentSplitHook_FeePercentWithoutFeeProject();
-    error UniV4DeploymentSplitHook_InvalidFeePercent();
-    error UniV4DeploymentSplitHook_InvalidProjectId();
-    error UniV4DeploymentSplitHook_InvalidStageForAction();
-    error UniV4DeploymentSplitHook_InvalidTerminalToken();
-    error UniV4DeploymentSplitHook_NoTokensAccumulated();
-    error UniV4DeploymentSplitHook_NotHookSpecifiedInContext();
-    error UniV4DeploymentSplitHook_PoolAlreadyDeployed();
-    error UniV4DeploymentSplitHook_SplitSenderNotValidControllerOrTerminal();
-    error UniV4DeploymentSplitHook_TerminalTokensNotAllowed();
-    error UniV4DeploymentSplitHook_InsufficientLiquidity();
-    error UniV4DeploymentSplitHook_ZeroAddressNotAllowed();
+    error JBUniswapV4LPSplitHook_AlreadyInitialized();
+    error JBUniswapV4LPSplitHook_FeePercentWithoutFeeProject();
+    error JBUniswapV4LPSplitHook_InvalidFeePercent();
+    error JBUniswapV4LPSplitHook_InvalidProjectId();
+    error JBUniswapV4LPSplitHook_InvalidStageForAction();
+    error JBUniswapV4LPSplitHook_InvalidTerminalToken();
+    error JBUniswapV4LPSplitHook_NoTokensAccumulated();
+    error JBUniswapV4LPSplitHook_NotHookSpecifiedInContext();
+    error JBUniswapV4LPSplitHook_PoolAlreadyDeployed();
+    error JBUniswapV4LPSplitHook_SplitSenderNotValidControllerOrTerminal();
+    error JBUniswapV4LPSplitHook_TerminalTokensNotAllowed();
+    error JBUniswapV4LPSplitHook_InsufficientLiquidity();
+    error JBUniswapV4LPSplitHook_ZeroAddressNotAllowed();
 
     //*********************************************************************//
     // ------------------------- public constants ------------------------ //
@@ -110,10 +110,15 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
     /// @notice Uniswap V4 PositionManager address
     IPositionManager public immutable POSITION_MANAGER;
 
+    /// @notice The oracle hook used for all JB V4 pools (provides TWAP via observe()).
+    IHooks public immutable ORACLE_HOOK;
+
     /// @notice Project ID to receive LP fees
+    // forge-lint: disable-next-line(mixed-case-variable)
     uint256 public FEE_PROJECT_ID;
 
     /// @notice Percentage of LP fees to route to fee project (in basis points, e.g., 3800 = 38%)
+    // forge-lint: disable-next-line(mixed-case-variable)
     uint256 public FEE_PERCENT;
 
     //*********************************************************************//
@@ -155,41 +160,44 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
     /// @param tokens JBTokens address
     /// @param poolManager Uniswap V4 PoolManager address
     /// @param positionManager Uniswap V4 PositionManager address
+    /// @param oracleHook The oracle hook for all JB V4 pools (provides TWAP via observe()).
     constructor(
         address directory,
         IJBPermissions permissions,
         address tokens,
         IPoolManager poolManager,
-        IPositionManager positionManager
+        IPositionManager positionManager,
+        IHooks oracleHook
     )
         JBPermissioned(permissions)
     {
-        if (directory == address(0)) revert UniV4DeploymentSplitHook_ZeroAddressNotAllowed();
-        if (tokens == address(0)) revert UniV4DeploymentSplitHook_ZeroAddressNotAllowed();
-        if (address(poolManager) == address(0)) revert UniV4DeploymentSplitHook_ZeroAddressNotAllowed();
-        if (address(positionManager) == address(0)) revert UniV4DeploymentSplitHook_ZeroAddressNotAllowed();
+        if (directory == address(0)) revert JBUniswapV4LPSplitHook_ZeroAddressNotAllowed();
+        if (tokens == address(0)) revert JBUniswapV4LPSplitHook_ZeroAddressNotAllowed();
+        if (address(poolManager) == address(0)) revert JBUniswapV4LPSplitHook_ZeroAddressNotAllowed();
+        if (address(positionManager) == address(0)) revert JBUniswapV4LPSplitHook_ZeroAddressNotAllowed();
 
         DIRECTORY = directory;
         TOKENS = tokens;
         POOL_MANAGER = poolManager;
         POSITION_MANAGER = positionManager;
+        ORACLE_HOOK = oracleHook;
     }
 
     /// @notice Initialize per-instance config on a clone. Can only be called once.
     /// @param feeProjectId Project ID to receive LP fees.
     /// @param feePercent Percentage of LP fees to route to fee project (in basis points, e.g., 3800 = 38%).
     function initialize(uint256 feeProjectId, uint256 feePercent) external {
-        if (initialized) revert UniV4DeploymentSplitHook_AlreadyInitialized();
+        if (initialized) revert JBUniswapV4LPSplitHook_AlreadyInitialized();
 
-        if (feePercent > BPS) revert UniV4DeploymentSplitHook_InvalidFeePercent();
+        if (feePercent > BPS) revert JBUniswapV4LPSplitHook_InvalidFeePercent();
 
         // If fees are configured, a valid fee project must be specified — otherwise fee tokens get stuck
         // because primaryTerminalOf(0, token) returns address(0).
-        if (feePercent > 0 && feeProjectId == 0) revert UniV4DeploymentSplitHook_FeePercentWithoutFeeProject();
+        if (feePercent > 0 && feeProjectId == 0) revert JBUniswapV4LPSplitHook_FeePercentWithoutFeeProject();
 
         if (feeProjectId != 0) {
             address feeController = address(IJBDirectory(DIRECTORY).controllerOf(feeProjectId));
-            if (feeController == address(0)) revert UniV4DeploymentSplitHook_InvalidProjectId();
+            if (feeController == address(0)) revert JBUniswapV4LPSplitHook_InvalidProjectId();
         }
 
         initialized = true;
@@ -206,7 +214,7 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
 
     function supportsInterface(bytes4 interfaceId) public pure override returns (bool) {
         return
-            interfaceId == type(IUniV4DeploymentSplitHook).interfaceId || interfaceId == type(IJBSplitHook).interfaceId;
+            interfaceId == type(IJBUniswapV4LPSplitHook).interfaceId || interfaceId == type(IJBSplitHook).interfaceId;
     }
 
     //*********************************************************************//
@@ -460,9 +468,10 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
     }
 
     /// @notice Collect LP fees and route them back to the project
+    // forge-lint: disable-next-line(mixed-case-function)
     function collectAndRouteLPFees(uint256 projectId, address terminalToken) external {
         uint256 tokenId = tokenIdOf[projectId][terminalToken];
-        if (tokenId == 0) revert UniV4DeploymentSplitHook_InvalidStageForAction();
+        if (tokenId == 0) revert JBUniswapV4LPSplitHook_InvalidStageForAction();
 
         address projectToken = address(IJBTokens(TOKENS).tokenOf(projectId));
         PoolKey memory key = _poolKeys[projectId][terminalToken];
@@ -515,16 +524,16 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
             });
         }
 
-        if (tokenIdOf[projectId][terminalToken] != 0) revert UniV4DeploymentSplitHook_PoolAlreadyDeployed();
+        if (tokenIdOf[projectId][terminalToken] != 0) revert JBUniswapV4LPSplitHook_PoolAlreadyDeployed();
 
         address projectToken = address(IJBTokens(TOKENS).tokenOf(projectId));
         uint256 projectTokenBalance = accumulatedProjectTokens[projectId];
 
-        if (projectTokenBalance == 0) revert UniV4DeploymentSplitHook_NoTokensAccumulated();
+        if (projectTokenBalance == 0) revert JBUniswapV4LPSplitHook_NoTokensAccumulated();
 
         address terminal =
             address(IJBDirectory(DIRECTORY).primaryTerminalOf({projectId: projectId, token: terminalToken}));
-        if (terminal == address(0)) revert UniV4DeploymentSplitHook_InvalidTerminalToken();
+        if (terminal == address(0)) revert JBUniswapV4LPSplitHook_InvalidTerminalToken();
 
         _deployPoolAndAddLiquidity(projectId, projectToken, terminalToken, amount0Min, amount1Min, minCashOutReturn);
 
@@ -536,13 +545,13 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
 
     /// @notice IJBSplitHook: called by JuiceboxV4 controller when sending funds to designated split hook
     function processSplitWith(JBSplitHookContext calldata context) external payable {
-        if (address(context.split.hook) != address(this)) revert UniV4DeploymentSplitHook_NotHookSpecifiedInContext();
+        if (address(context.split.hook) != address(this)) revert JBUniswapV4LPSplitHook_NotHookSpecifiedInContext();
 
         address controller = address(IJBDirectory(DIRECTORY).controllerOf(context.projectId));
-        if (controller == address(0)) revert UniV4DeploymentSplitHook_InvalidProjectId();
-        if (controller != msg.sender) revert UniV4DeploymentSplitHook_SplitSenderNotValidControllerOrTerminal();
+        if (controller == address(0)) revert JBUniswapV4LPSplitHook_InvalidProjectId();
+        if (controller != msg.sender) revert JBUniswapV4LPSplitHook_SplitSenderNotValidControllerOrTerminal();
 
-        if (context.groupId != 1) revert UniV4DeploymentSplitHook_TerminalTokensNotAllowed();
+        if (context.groupId != 1) revert JBUniswapV4LPSplitHook_TerminalTokensNotAllowed();
 
         address projectToken = context.token;
 
@@ -578,10 +587,10 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
 
         address terminal =
             address(IJBDirectory(DIRECTORY).primaryTerminalOf({projectId: projectId, token: terminalToken}));
-        if (terminal == address(0)) revert UniV4DeploymentSplitHook_InvalidTerminalToken();
+        if (terminal == address(0)) revert JBUniswapV4LPSplitHook_InvalidTerminalToken();
 
         uint256 tokenId = tokenIdOf[projectId][terminalToken];
-        if (tokenId == 0) revert UniV4DeploymentSplitHook_InvalidStageForAction();
+        if (tokenId == 0) revert JBUniswapV4LPSplitHook_InvalidStageForAction();
 
         address projectToken = address(IJBTokens(TOKENS).tokenOf(projectId));
         PoolKey memory key = _poolKeys[projectId][terminalToken];
@@ -611,8 +620,8 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
             bytes memory burnActions = abi.encodePacked(uint8(Actions.BURN_POSITION), uint8(Actions.TAKE_PAIR));
 
             bytes[] memory burnParams = new bytes[](2);
-            // forge-lint: disable-next-line(unsafe-typecast)
             // Safe: min amounts are user-provided slippage params; PositionManager accepts uint128.
+            // forge-lint: disable-next-line(unsafe-typecast)
             burnParams[0] = abi.encode(tokenId, uint128(decreaseAmount0Min), uint128(decreaseAmount1Min), "");
             burnParams[1] = abi.encode(key.currency0, key.currency1, address(this));
 
@@ -655,7 +664,7 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
                 // Revert to prevent bricking the project's LP — the old position was already
                 // burned by the BURN_POSITION action above, so this protects the invariant
                 // that tokenIdOf is always nonzero for deployed projects.
-                revert UniV4DeploymentSplitHook_InsufficientLiquidity();
+                revert JBUniswapV4LPSplitHook_InsufficientLiquidity();
             }
 
             // Handle leftover tokens
@@ -774,8 +783,8 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
 
     /// @notice Align tick to tick spacing using proper floor semantics for negative ticks
     function _alignTickToSpacing(int24 tick, int24 spacing) internal pure returns (int24 alignedTick) {
+        // Intentional: rounding tick down to nearest spacing boundary
         // forge-lint: disable-next-line(divide-before-multiply)
-        // Intentional: integer floor-division to nearest tick spacing boundary.
         int24 rounded = (tick / spacing) * spacing;
         if (tick < 0 && rounded > tick) {
             rounded -= spacing;
@@ -901,7 +910,9 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
             return 0;
         }
 
+        // forge-lint: disable-next-line(mixed-case-variable)
         uint256 diffPriceInit_A = uint256(sqrtPriceInit) - uint256(sqrtPriceA);
+        // forge-lint: disable-next-line(mixed-case-variable)
         uint256 diffB_PriceInit = uint256(sqrtPriceB) - uint256(sqrtPriceInit);
 
         if (terminalIsToken0) {
@@ -952,7 +963,7 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
             currency1: currency1,
             fee: POOL_FEE,
             tickSpacing: TICK_SPACING,
-            hooks: IHooks(address(0))
+            hooks: ORACLE_HOOK
         });
 
         // Compute initial price at geometric mean of [cashOutRate, issuanceRate]
@@ -1061,11 +1072,9 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
         );
 
         bytes[] memory params = new bytes[](5);
-        // forge-lint: disable-next-line(unsafe-typecast)
         // Safe: amount0/amount1 are bounded by token balances which fit in uint128.
-        params[0] = abi.encode(
-            key, tickLower, tickUpper, uint256(liquidity), uint128(amount0), uint128(amount1), address(this), ""
-        );
+        // forge-lint: disable-next-line(unsafe-typecast)
+        params[0] = abi.encode(key, tickLower, tickUpper, uint256(liquidity), uint128(amount0), uint128(amount1), address(this), "");
         // SETTLE currency0: payerIsUser=true means PositionManager pulls from msg.sender (this contract) via approve
         params[1] = abi.encode(key.currency0, uint256(0), true);
         // SETTLE currency1
@@ -1081,8 +1090,8 @@ contract UniV4DeploymentSplitHook is IUniV4DeploymentSplitHook, IJBSplitHook, JB
     /// @notice Approve an ERC20 token via Permit2 so PositionManager can pull it during SETTLE.
     function _approveViaPermit2(address token, uint256 amount) internal {
         IERC20(token).forceApprove(address(PERMIT2), amount);
-        // forge-lint: disable-next-line(unsafe-typecast)
         // Safe: amount is bounded by token balance (fits uint160); block.timestamp + 60 fits uint48.
+        // forge-lint: disable-next-line(unsafe-typecast)
         PERMIT2.approve(token, address(POSITION_MANAGER), uint160(amount), uint48(block.timestamp + 60));
     }
 

@@ -18,7 +18,7 @@ Admin privileges and their scope in univ4-lp-split-hook-v6.
 
 ### 3. Hook Deployer (Anyone)
 
-- **Assigned by:** No assignment required. Anyone can call `UniV4DeploymentSplitHookDeployer.deployHookFor()`.
+- **Assigned by:** No assignment required. Anyone can call `JBUniswapV4LPSplitHookDeployer.deployHookFor()`.
 - **Scope:** Global. The caller becomes the initial context for the deployed clone (their address is included in the CREATE2 salt scoping).
 
 ### 4. JB Controller (System Role)
@@ -29,7 +29,7 @@ Admin privileges and their scope in univ4-lp-split-hook-v6.
 
 ## Privileged Functions
 
-### UniV4DeploymentSplitHook
+### JBUniswapV4LPSplitHook
 
 | Function | Required Role | Permission ID | Scope | What It Does |
 |----------|--------------|---------------|-------|-------------|
@@ -39,7 +39,7 @@ Admin privileges and their scope in univ4-lp-split-hook-v6.
 | `processSplitWith(context)` | JB Controller (system) | None (checked via `controllerOf`) | Per-project | Only callable by the project's registered controller. Accumulates project tokens (pre-deployment) or burns them (post-deployment). Validates `context.split.hook == address(this)`, `groupId == 1`, and controller identity. (Lines 534-555) |
 | `initialize(feeProjectId, feePercent)` | Anyone (once only) | None | Per-clone instance | Sets `FEE_PROJECT_ID` and `FEE_PERCENT` on a clone. Can only be called once per clone (`initialized` flag). In practice, called immediately by the deployer factory. (Lines 177-194) |
 
-### UniV4DeploymentSplitHookDeployer
+### JBUniswapV4LPSplitHookDeployer
 
 | Function | Required Role | Permission ID | Scope | What It Does |
 |----------|--------------|---------------|-------|-------------|
@@ -52,7 +52,7 @@ Admin privileges and their scope in univ4-lp-split-hook-v6.
 | `collectAndRouteLPFees(projectId, terminalToken)` | Per-project, per-terminal-token | Collects accrued V4 position fees and routes them: `FEE_PERCENT` of terminal token fees to the fee project via `terminal.pay()`, the remainder to the original project via `addToBalanceOf()`. Project token fees are burned. Safe because funds always go to verified project terminals. (Lines 459-488) |
 | `isPoolDeployed(projectId, terminalToken)` | View | Returns whether `tokenIdOf[projectId][terminalToken] != 0`. |
 | `poolKeyOf(projectId, terminalToken)` | View | Returns the stored `PoolKey` for a deployed pool. |
-| `supportsInterface(interfaceId)` | View | Returns `true` for `IUniV4DeploymentSplitHook` and `IJBSplitHook`. |
+| `supportsInterface(interfaceId)` | View | Returns `true` for `IJBUniswapV4LPSplitHook` and `IJBSplitHook`. |
 | `receive()` | Accepts ETH | Required for cash-out with native ETH and V4 TAKE operations. |
 
 ## Immutable Configuration
@@ -67,6 +67,7 @@ These values are set at deploy time and cannot be changed afterward.
 | `TOKENS` | Constructor (line 169) | JBTokens address |
 | `POOL_MANAGER` | Constructor (line 170) | Uniswap V4 PoolManager address |
 | `POSITION_MANAGER` | Constructor (line 171) | Uniswap V4 PositionManager address |
+| `ORACLE_HOOK` | Constructor (line 183) | Oracle hook (`IHooks`) for all JB V4 pools. Set in `PoolKey.hooks` when creating pools. Provides TWAP via `observe()`. |
 | `PERMISSIONS` | Inherited from `JBPermissioned` constructor (line 161) | JBPermissions address |
 
 ### Clone-Level (initialize(), Per-Instance)
@@ -102,7 +103,7 @@ What admins **cannot** do:
 
 7. **Cannot prevent permissionless pool deployment after 10x weight decay.** Once the current ruleset weight drops to 1/10th of `initialWeightOf[projectId]`, the `SET_BUYBACK_POOL` permission check is bypassed and anyone can deploy.
 
-8. **Cannot change the Uniswap V4 infrastructure contracts.** `POOL_MANAGER`, `POSITION_MANAGER`, `DIRECTORY`, `TOKENS`, and `PERMISSIONS` are immutable, set in the implementation constructor, and shared across all clones.
+8. **Cannot change the Uniswap V4 infrastructure contracts.** `POOL_MANAGER`, `POSITION_MANAGER`, `ORACLE_HOOK`, `DIRECTORY`, `TOKENS`, and `PERMISSIONS` are immutable, set in the implementation constructor, and shared across all clones.
 
 9. **Cannot control which project tokens are sent via `processSplitWith`.** The controller decides when and how much to distribute. The hook only receives what the JB protocol sends it.
 
