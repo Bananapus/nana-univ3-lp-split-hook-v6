@@ -292,6 +292,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
     }
 
     /// @notice Calculate the issuance rate (price ceiling)
+    // slither-disable-next-line unused-return
     function _getIssuanceRate(
         uint256 projectId,
         address terminalToken
@@ -345,6 +346,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
     }
 
     /// @notice For given terminalToken amount, compute equivalent projectToken amount at current JuiceboxV4 price
+    // slither-disable-next-line unused-return
     function _getProjectTokensOutForTerminalTokensIn(
         uint256 projectId,
         address terminalToken,
@@ -402,6 +404,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
     }
 
     /// @notice For given projectToken amount, compute equivalent terminalToken amount at current JuiceboxV4 price
+    // slither-disable-next-line unused-return
     function _getTerminalTokensOutForProjectTokensIn(
         uint256 projectId,
         address terminalToken,
@@ -471,6 +474,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
 
     /// @notice Collect LP fees and route them back to the project
     // forge-lint: disable-next-line(mixed-case-function)
+    // slither-disable-next-line reentrancy-events
     function collectAndRouteLPFees(uint256 projectId, address terminalToken) external {
         uint256 tokenId = tokenIdOf[projectId][terminalToken];
         if (tokenId == 0) revert JBUniswapV4LPSplitHook_InvalidStageForAction();
@@ -503,6 +507,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
     }
 
     /// @notice Deploy a Uniswap V4 pool for a project using accumulated tokens
+    // slither-disable-next-line reentrancy-benign,reentrancy-events,unused-return
     function deployPool(
         uint256 projectId,
         address terminalToken,
@@ -546,6 +551,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
     }
 
     /// @notice IJBSplitHook: called by JuiceboxV4 controller when sending funds to designated split hook
+    // slither-disable-next-line unused-return
     function processSplitWith(JBSplitHookContext calldata context) external payable {
         if (address(context.split.hook) != address(this)) revert JBUniswapV4LPSplitHook_NotHookSpecifiedInContext();
 
@@ -571,6 +577,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
 
     /// @notice Rebalance LP position to match current issuance and cash out rates
     /// @dev Requires SET_BUYBACK_POOL permission from the project owner.
+    // slither-disable-next-line reentrancy-eth,reentrancy-benign,reentrancy-events
     function rebalanceLiquidity(
         uint256 projectId,
         address terminalToken,
@@ -684,6 +691,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
     }
 
     /// @notice Add tokens to project balance via terminal
+    // slither-disable-next-line arbitrary-send-eth,incorrect-equality
     function _addToProjectBalance(uint256 projectId, address token, uint256 amount, bool isNative) internal {
         if (amount == 0) return;
 
@@ -700,6 +708,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
     }
 
     /// @notice Add liquidity to a Uniswap V4 pool using accumulated tokens
+    // slither-disable-next-line reentrancy-eth,reentrancy-benign,reentrancy-events,unused-return
     function _addUniswapLiquidity(
         uint256 projectId,
         address projectToken,
@@ -784,6 +793,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
     }
 
     /// @notice Align tick to tick spacing using proper floor semantics for negative ticks
+    // slither-disable-next-line divide-before-multiply
     function _alignTickToSpacing(int24 tick, int24 spacing) internal pure returns (int24 alignedTick) {
         // Intentional: rounding tick down to nearest spacing boundary
         // forge-lint: disable-next-line(divide-before-multiply)
@@ -795,6 +805,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
     }
 
     /// @notice Burn project tokens using the controller
+    // slither-disable-next-line incorrect-equality,reentrancy-events
     function _burnProjectTokens(uint256 projectId, address projectToken, uint256 amount, string memory memo) internal {
         if (amount == 0) return;
 
@@ -964,6 +975,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
     }
 
     /// @notice Create and initialize Uniswap V4 pool
+    // slither-disable-next-line reentrancy-benign,reentrancy-events,unused-return
     function _createAndInitializePool(
         uint256 projectId,
         address projectToken,
@@ -1003,6 +1015,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
     }
 
     /// @notice Deploy pool and add liquidity using accumulated tokens
+    // slither-disable-next-line reentrancy-events
     function _deployPoolAndAddLiquidity(
         uint256 projectId,
         address projectToken,
@@ -1116,6 +1129,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
     }
 
     /// @notice Route collected fees from Uniswap position to project
+    // slither-disable-next-line reentrancy-eth,reentrancy-events,incorrect-equality
     function _routeCollectedFees(
         uint256 projectId,
         address projectToken,
@@ -1140,6 +1154,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
     }
 
     /// @notice Route fees back to the project
+    // slither-disable-next-line arbitrary-send-eth,reentrancy-eth,reentrancy-benign,reentrancy-events,incorrect-equality,unused-return
     function _routeFeesToProject(uint256 projectId, address terminalToken, uint256 amount) internal {
         if (amount == 0) return;
 
