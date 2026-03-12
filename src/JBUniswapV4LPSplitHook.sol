@@ -213,8 +213,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
     //*********************************************************************//
 
     function supportsInterface(bytes4 interfaceId) public pure override returns (bool) {
-        return
-            interfaceId == type(IJBUniswapV4LPSplitHook).interfaceId || interfaceId == type(IJBSplitHook).interfaceId;
+        return interfaceId == type(IJBUniswapV4LPSplitHook).interfaceId || interfaceId == type(IJBSplitHook).interfaceId;
     }
 
     //*********************************************************************//
@@ -982,11 +981,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
             : (projectCurrency, terminalCurrency);
 
         key = PoolKey({
-            currency0: currency0,
-            currency1: currency1,
-            fee: POOL_FEE,
-            tickSpacing: TICK_SPACING,
-            hooks: ORACLE_HOOK
+            currency0: currency0, currency1: currency1, fee: POOL_FEE, tickSpacing: TICK_SPACING, hooks: ORACLE_HOOK
         });
 
         // Compute initial price at geometric mean of [cashOutRate, issuanceRate]
@@ -1097,7 +1092,9 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         bytes[] memory params = new bytes[](5);
         // Safe: amount0/amount1 are bounded by token balances which fit in uint128.
         // forge-lint: disable-next-line(unsafe-typecast)
-        params[0] = abi.encode(key, tickLower, tickUpper, uint256(liquidity), uint128(amount0), uint128(amount1), address(this), "");
+        params[0] = abi.encode(
+            key, tickLower, tickUpper, uint256(liquidity), uint128(amount0), uint128(amount1), address(this), ""
+        );
         // SETTLE currency0: payerIsUser=true means PositionManager pulls from msg.sender (this contract) via approve
         params[1] = abi.encode(key.currency0, uint256(0), true);
         // SETTLE currency1

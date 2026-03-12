@@ -100,9 +100,7 @@ contract AccumulationStageTest is LPSplitHookV4TestBase {
 
         JBSplitHookContext memory context = _buildReservedContext(PROJECT_ID, amount);
 
-        vm.expectRevert(
-            JBUniswapV4LPSplitHook.JBUniswapV4LPSplitHook_SplitSenderNotValidControllerOrTerminal.selector
-        );
+        vm.expectRevert(JBUniswapV4LPSplitHook.JBUniswapV4LPSplitHook_SplitSenderNotValidControllerOrTerminal.selector);
         // Call from `user` instead of controller
         vm.prank(user);
         hook.processSplitWith(context);
@@ -182,8 +180,7 @@ contract AccumulationStageTest is LPSplitHookV4TestBase {
     /// @notice supportsInterface returns true for IJBUniswapV4LPSplitHook and IJBSplitHook.
     function test_SupportsInterface() public view {
         assertTrue(
-            hook.supportsInterface(type(IJBUniswapV4LPSplitHook).interfaceId),
-            "Should support IJBUniswapV4LPSplitHook"
+            hook.supportsInterface(type(IJBUniswapV4LPSplitHook).interfaceId), "Should support IJBUniswapV4LPSplitHook"
         );
         assertTrue(hook.supportsInterface(type(IJBSplitHook).interfaceId), "Should support IJBSplitHook");
         // Verify a random interface ID returns false

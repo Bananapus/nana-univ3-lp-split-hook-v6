@@ -101,12 +101,7 @@ contract DeployScript is Script, Sphinx {
 
     function deploy() public sphinx {
         JBUniswapV4LPSplitHook hookImpl = new JBUniswapV4LPSplitHook{salt: hookSalt}(
-            address(core.directory),
-            core.permissions,
-            address(core.tokens),
-            poolManager,
-            positionManager,
-            router.hook
+            address(core.directory), core.permissions, address(core.tokens), poolManager, positionManager, router.hook
         );
 
         new JBUniswapV4LPSplitHookDeployer{salt: deployerSalt}(hookImpl, registry.registry);

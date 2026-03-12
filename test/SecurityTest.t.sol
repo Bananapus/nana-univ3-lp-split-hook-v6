@@ -23,9 +23,7 @@ contract SecurityTest is LPSplitHookV4TestBase {
         projectToken.mint(address(hook), 100e18);
 
         vm.prank(user); // NOT the controller
-        vm.expectRevert(
-            JBUniswapV4LPSplitHook.JBUniswapV4LPSplitHook_SplitSenderNotValidControllerOrTerminal.selector
-        );
+        vm.expectRevert(JBUniswapV4LPSplitHook.JBUniswapV4LPSplitHook_SplitSenderNotValidControllerOrTerminal.selector);
         hook.processSplitWith(context);
     }
 

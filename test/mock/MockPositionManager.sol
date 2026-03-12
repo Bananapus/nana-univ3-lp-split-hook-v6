@@ -110,9 +110,7 @@ contract MockPositionManager {
         int24 tick = TickMath.getTickAtSqrtPrice(sqrtPriceX96);
         uint24 lpFee = key.fee;
         // Pack: lpFee (24) | protocolFee (24) | tick (24) | sqrtPriceX96 (160)
-        bytes32 packed = bytes32(
-            (uint256(lpFee) << 208) | (uint256(uint24(tick)) << 160) | uint256(sqrtPriceX96)
-        );
+        bytes32 packed = bytes32((uint256(lpFee) << 208) | (uint256(uint24(tick)) << 160) | uint256(sqrtPriceX96));
         poolManager.writeSlot(stateSlot, packed);
     }
 

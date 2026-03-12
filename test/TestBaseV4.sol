@@ -47,7 +47,6 @@ contract MockPermit2 {
 
 /// @notice Shared test harness for JBUniswapV4LPSplitHook tests
 contract LPSplitHookV4TestBase is Test {
-
     // ─── Contracts Under Test
     JBUniswapV4LPSplitHook public hook;
 

@@ -416,7 +416,7 @@ contract LPSplitHookForkTest is Test {
         // Initialize the pool externally at the issuance rate price (different from the
         // geometric mean that _computeInitialSqrtPrice would compute).
         // Use a price that's clearly different from the midpoint.
-        uint160 externalSqrtPrice = TickMath.getSqrtPriceAtTick(int24(69000));
+        uint160 externalSqrtPrice = TickMath.getSqrtPriceAtTick(int24(69_000));
         V4_POSITION_MANAGER.initializePool(key, externalSqrtPrice);
 
         // Verify pool is initialized with our external price.

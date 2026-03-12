@@ -104,9 +104,7 @@ contract GeomeanSwapHelper is IUnlockCallback {
             SwapParams({
                 zeroForOne: params.zeroForOne,
                 amountSpecified: params.amountSpecified,
-                sqrtPriceLimitX96: params.zeroForOne
-                    ? TickMath.MIN_SQRT_PRICE + 1
-                    : TickMath.MAX_SQRT_PRICE - 1
+                sqrtPriceLimitX96: params.zeroForOne ? TickMath.MIN_SQRT_PRICE + 1 : TickMath.MAX_SQRT_PRICE - 1
             }),
             ""
         );
@@ -123,7 +121,8 @@ contract GeomeanSwapHelper is IUnlockCallback {
                 poolManager.settle{value: amountOwed}();
             } else {
                 poolManager.sync(params.key.currency0);
-                IERC20(Currency.unwrap(params.key.currency0)).transferFrom(params.sender, address(poolManager), amountOwed);
+                IERC20(Currency.unwrap(params.key.currency0))
+                    .transferFrom(params.sender, address(poolManager), amountOwed);
                 poolManager.settle();
             }
         } else if (delta0 > 0) {
@@ -138,7 +137,8 @@ contract GeomeanSwapHelper is IUnlockCallback {
                 poolManager.settle{value: amountOwed}();
             } else {
                 poolManager.sync(params.key.currency1);
-                IERC20(Currency.unwrap(params.key.currency1)).transferFrom(params.sender, address(poolManager), amountOwed);
+                IERC20(Currency.unwrap(params.key.currency1))
+                    .transferFrom(params.sender, address(poolManager), amountOwed);
                 poolManager.settle();
             }
         } else if (delta1 > 0) {
@@ -160,13 +160,15 @@ contract GeomeanLPForkTest is Test {
     using StateLibrary for IPoolManager;
     using PoolIdLibrary for PoolKey;
 
-    // ───────────────────────── Mainnet addresses ──────────────────────────
+    // ───────────────────────── Mainnet addresses
+    // ──────────────────────────
 
     IPoolManager constant V4_POOL_MANAGER = IPoolManager(0x000000000004444c5dc75cB358380D2e3dE08A90);
     IPositionManager constant V4_POSITION_MANAGER = IPositionManager(0xbD216513d74C8cf14cf4747E6AaA6420FF64ee9e);
     IPermit2 constant PERMIT2 = IPermit2(0x000000000022D473030F116dDEE9F6B43aC78BA3);
 
-    // ───────────────────────── JB core (deployed fresh) ───────────────────
+    // ───────────────────────── JB core (deployed fresh)
+    // ───────────────────
 
     address multisig = address(0xBEEF);
     address trustedForwarder = address(0);
@@ -184,11 +186,13 @@ contract GeomeanLPForkTest is Test {
     JBTerminalStore jbTerminalStore;
     JBMultiTerminal jbMultiTerminal;
 
-    // ───────────────────────── Hook under test ────────────────────────────
+    // ───────────────────────── Hook under test
+    // ────────────────────────────
 
     JBUniswapV4LPSplitHook hook;
 
-    // ───────────────────────── Project state ──────────────────────────────
+    // ───────────────────────── Project state
+    // ──────────────────────────────
 
     uint256 feeProjectId;
     uint256 projectId;
@@ -250,7 +254,7 @@ contract GeomeanLPForkTest is Test {
     ///         Verify pool deploys, position exists, liquidity > 0, and accumulated tokens clear.
     function test_fork_ethPool_varyingAccumulation() public {
         uint256[] memory amounts = new uint256[](4);
-        amounts[0] = 1_000e18;
+        amounts[0] = 1000e18;
         amounts[1] = 10_000e18;
         amounts[2] = 100_000e18;
         amounts[3] = 1_000_000e18;
@@ -397,11 +401,7 @@ contract GeomeanLPForkTest is Test {
         // Mint some project tokens to this test contract for the swap.
         vm.prank(multisig);
         jbController.mintTokensOf({
-            projectId: projectId,
-            tokenCount: 10_000e18,
-            beneficiary: address(this),
-            memo: "",
-            useReservedPercent: false
+            projectId: projectId, tokenCount: 10_000e18, beneficiary: address(this), memo: "", useReservedPercent: false
         });
 
         // Approve the swap helper to pull project tokens via transferFrom in the callback.
@@ -414,7 +414,7 @@ contract GeomeanLPForkTest is Test {
         bool zeroForOne = projIsToken0;
 
         // Exact input: negative amountSpecified means exactIn.
-        swapHelper.swap{value: projIsToken0 ? 0 : 0}(key, zeroForOne, -int256(5_000e18));
+        swapHelper.swap{value: projIsToken0 ? 0 : 0}(key, zeroForOne, -int256(5000e18));
 
         (uint160 sqrtPriceAfterSwap,,,) = V4_POOL_MANAGER.getSlot0(poolId);
         assertTrue(sqrtPriceAfterSwap != sqrtPriceBefore, "swap should have moved the price");
@@ -446,7 +446,7 @@ contract GeomeanLPForkTest is Test {
     ///         For each: set up project with USDC terminal, pay USDC, accumulate, deploy, verify.
     function test_fork_usdcPool_deployAndVerify() public {
         uint256[] memory usdcAmounts = new uint256[](3);
-        usdcAmounts[0] = 1_000e6;
+        usdcAmounts[0] = 1000e6;
         usdcAmounts[1] = 10_000e6;
         usdcAmounts[2] = 100_000e6;
 
@@ -500,7 +500,7 @@ contract GeomeanLPForkTest is Test {
     ///         and verify position liquidity scales proportionally with USDC input.
     function test_fork_usdcPool_varyingLiquidity() public {
         uint256[] memory usdcAmounts = new uint256[](3);
-        usdcAmounts[0] = 1_000e6;
+        usdcAmounts[0] = 1000e6;
         usdcAmounts[1] = 10_000e6;
         usdcAmounts[2] = 100_000e6;
 
@@ -518,7 +518,7 @@ contract GeomeanLPForkTest is Test {
 
             // Scale token accumulation proportionally with USDC.
             // For 1k USDC -> 5k tokens, 10k -> 50k, 100k -> 500k.
-            uint256 tokenAmount = (usdcAmounts[i] * 5_000e18) / 1_000e6;
+            uint256 tokenAmount = (usdcAmounts[i] * 5000e18) / 1000e6;
             _accumulateTokens(pid, address(pToken), tokenAmount);
 
             vm.prank(multisig);
@@ -537,14 +537,8 @@ contract GeomeanLPForkTest is Test {
 
         // Verify liquidity scales: each 10x USDC increase should yield significantly more liquidity.
         // We use a loose check: 2x minimum increase per 10x input (accounts for bonding curve effects).
-        assertTrue(
-            liquidities[1] > liquidities[0] * 2,
-            "10x USDC should yield at least 2x liquidity vs 1x"
-        );
-        assertTrue(
-            liquidities[2] > liquidities[1] * 2,
-            "100x USDC should yield at least 2x liquidity vs 10x"
-        );
+        assertTrue(liquidities[1] > liquidities[0] * 2, "10x USDC should yield at least 2x liquidity vs 1x");
+        assertTrue(liquidities[2] > liquidities[1] * 2, "100x USDC should yield at least 2x liquidity vs 10x");
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -693,9 +687,7 @@ contract GeomeanLPForkTest is Test {
 
         JBAccountingContext[] memory tokensToAccept = new JBAccountingContext[](1);
         tokensToAccept[0] = JBAccountingContext({
-            token: JBConstants.NATIVE_TOKEN,
-            decimals: 18,
-            currency: uint32(uint160(JBConstants.NATIVE_TOKEN))
+            token: JBConstants.NATIVE_TOKEN, decimals: 18, currency: uint32(uint160(JBConstants.NATIVE_TOKEN))
         });
 
         JBTerminalConfig[] memory terminalConfigs = new JBTerminalConfig[](1);
@@ -746,9 +738,7 @@ contract GeomeanLPForkTest is Test {
 
         JBAccountingContext[] memory tokensToAccept = new JBAccountingContext[](1);
         tokensToAccept[0] = JBAccountingContext({
-            token: JBConstants.NATIVE_TOKEN,
-            decimals: 18,
-            currency: uint32(uint160(JBConstants.NATIVE_TOKEN))
+            token: JBConstants.NATIVE_TOKEN, decimals: 18, currency: uint32(uint160(JBConstants.NATIVE_TOKEN))
         });
 
         JBTerminalConfig[] memory terminalConfigs = new JBTerminalConfig[](1);
@@ -801,11 +791,8 @@ contract GeomeanLPForkTest is Test {
         rulesetConfigs[0].fundAccessLimitGroups = new JBFundAccessLimitGroup[](0);
 
         JBAccountingContext[] memory tokensToAccept = new JBAccountingContext[](1);
-        tokensToAccept[0] = JBAccountingContext({
-            token: address(usdc),
-            decimals: 6,
-            currency: uint32(uint160(address(usdc)))
-        });
+        tokensToAccept[0] =
+            JBAccountingContext({token: address(usdc), decimals: 6, currency: uint32(uint160(address(usdc)))});
 
         JBTerminalConfig[] memory terminalConfigs = new JBTerminalConfig[](1);
         terminalConfigs[0] = JBTerminalConfig({terminal: jbMultiTerminal, accountingContextsToAccept: tokensToAccept});
@@ -829,11 +816,7 @@ contract GeomeanLPForkTest is Test {
         // Mint tokens to the hook.
         vm.prank(multisig);
         jbController.mintTokensOf({
-            projectId: pid,
-            tokenCount: amount,
-            beneficiary: address(hook),
-            memo: "",
-            useReservedPercent: false
+            projectId: pid, tokenCount: amount, beneficiary: address(hook), memo: "", useReservedPercent: false
         });
 
         // Simulate the controller calling processSplitWith.
@@ -883,12 +866,8 @@ contract GeomeanLPForkTest is Test {
         // The terminal pulls via Permit2.transferFrom, so we need:
         // 1. ERC20 approve to Permit2
         // 2. Permit2 approve to terminal
-        IPermit2(address(PERMIT2)).approve(
-            address(usdc),
-            address(jbMultiTerminal),
-            uint160(amount),
-            uint48(block.timestamp + 3600)
-        );
+        IPermit2(address(PERMIT2))
+            .approve(address(usdc), address(jbMultiTerminal), uint160(amount), uint48(block.timestamp + 3600));
 
         jbMultiTerminal.pay({
             projectId: pid,

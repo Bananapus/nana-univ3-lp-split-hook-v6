@@ -12,9 +12,7 @@ interface IJBUniswapV4LPSplitHookDeployer {
     /// @param feePercent The percentage of LP fees routed to the fee project.
     /// @param hook The deployed hook clone.
     /// @param caller The address that deployed the hook.
-    event HookDeployed(
-        uint256 indexed feeProjectId, uint256 feePercent, IJBUniswapV4LPSplitHook hook, address caller
-    );
+    event HookDeployed(uint256 indexed feeProjectId, uint256 feePercent, IJBUniswapV4LPSplitHook hook, address caller);
 
     /// @notice The address registry used to register deployed hooks.
     /// @return The address registry contract.

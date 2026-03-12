@@ -11,12 +11,7 @@ import {LibClone} from "solady/src/utils/LibClone.sol";
 
 import {JBUniswapV4LPSplitHook} from "../../src/JBUniswapV4LPSplitHook.sol";
 import {MockPositionManager} from "../mock/MockPositionManager.sol";
-import {
-    MockJBDirectory,
-    MockJBController,
-    MockJBTokens,
-    MockJBPermissions
-} from "../mock/MockJBContracts.sol";
+import {MockJBDirectory, MockJBController, MockJBTokens, MockJBPermissions} from "../mock/MockJBContracts.sol";
 
 /// @notice Re-initialization protection.
 /// @dev The `initialized` boolean prevents calling initialize() more than once.

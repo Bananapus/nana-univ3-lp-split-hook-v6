@@ -11,12 +11,7 @@ import {LibClone} from "solady/src/utils/LibClone.sol";
 
 import {JBUniswapV4LPSplitHook} from "../../src/JBUniswapV4LPSplitHook.sol";
 import {MockPositionManager} from "../mock/MockPositionManager.sol";
-import {
-    MockJBDirectory,
-    MockJBController,
-    MockJBTokens,
-    MockJBPermissions
-} from "../mock/MockJBContracts.sol";
+import {MockJBDirectory, MockJBController, MockJBTokens, MockJBPermissions} from "../mock/MockJBContracts.sol";
 
 /// @notice feeProjectId=0 with non-zero feePercent locks fees.
 /// @dev When feePercent > 0 and feeProjectId == 0, primaryTerminalOf(0, token) returns address(0),
