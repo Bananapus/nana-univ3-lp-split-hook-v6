@@ -272,9 +272,9 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         view
         returns (uint160 sqrtPriceX96)
     {
-        (address token0,) = _sortTokens(terminalToken, projectToken);
+        (address token0,) = _sortTokens({tokenA: terminalToken, tokenB: projectToken});
 
-        uint256 terminalTokensPerProjectToken = _getCashOutRate(projectId, terminalToken);
+        uint256 terminalTokensPerProjectToken = _getCashOutRate({projectId: projectId, terminalToken: terminalToken});
 
         // If the cash out rate is 0 (no surplus or negligible surplus), return the minimum price.
         if (terminalTokensPerProjectToken == 0) return TickMath.MIN_SQRT_PRICE;
@@ -283,12 +283,12 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         uint256 token1Amount;
 
         if (token0 == terminalToken) {
-            token1Amount = mulDiv(token0Amount, 10 ** 18, terminalTokensPerProjectToken);
+            token1Amount = mulDiv({x: token0Amount, y: 10 ** 18, denominator: terminalTokensPerProjectToken});
         } else {
             token1Amount = terminalTokensPerProjectToken;
         }
 
-        return uint160(mulDiv(sqrt(token1Amount), 2 ** 96, sqrt(token0Amount)));
+        return uint160(mulDiv({x: sqrt(token1Amount), y: 2 ** 96, denominator: sqrt(token0Amount)}));
     }
 
     /// @notice Calculate the issuance rate (price ceiling)
@@ -306,14 +306,16 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
 
         uint16 reservedPercent = JBRulesetMetadataResolver.reservedPercent(ruleset);
 
-        uint256 tokensPerTerminalToken = _getProjectTokensOutForTerminalTokensIn(projectId, terminalToken, 10 ** 18);
+        uint256 tokensPerTerminalToken = _getProjectTokensOutForTerminalTokensIn({
+            projectId: projectId, terminalToken: terminalToken, terminalTokenInAmount: 10 ** 18
+        });
 
         if (reservedPercent > 0) {
-            projectTokensPerTerminalToken = mulDiv(
-                tokensPerTerminalToken,
-                uint256(JBConstants.MAX_RESERVED_PERCENT - reservedPercent),
-                uint256(JBConstants.MAX_RESERVED_PERCENT)
-            );
+            projectTokensPerTerminalToken = mulDiv({
+                x: tokensPerTerminalToken,
+                y: uint256(JBConstants.MAX_RESERVED_PERCENT - reservedPercent),
+                denominator: uint256(JBConstants.MAX_RESERVED_PERCENT)
+            });
         } else {
             projectTokensPerTerminalToken = tokensPerTerminalToken;
         }
@@ -329,9 +331,9 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         view
         returns (uint160 sqrtPriceX96)
     {
-        (address token0,) = _sortTokens(terminalToken, projectToken);
+        (address token0,) = _sortTokens({tokenA: terminalToken, tokenB: projectToken});
 
-        uint256 projectTokensPerTerminalToken = _getIssuanceRate(projectId, terminalToken);
+        uint256 projectTokensPerTerminalToken = _getIssuanceRate({projectId: projectId, terminalToken: terminalToken});
 
         uint256 token0Amount = 10 ** 18;
         uint256 token1Amount;
@@ -339,10 +341,10 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         if (token0 == terminalToken) {
             token1Amount = projectTokensPerTerminalToken;
         } else {
-            token1Amount = mulDiv(token0Amount, 10 ** 18, projectTokensPerTerminalToken);
+            token1Amount = mulDiv({x: token0Amount, y: 10 ** 18, denominator: projectTokensPerTerminalToken});
         }
 
-        return uint160(mulDiv(sqrt(token1Amount), 2 ** 96, sqrt(token0Amount)));
+        return uint160(mulDiv({x: sqrt(token1Amount), y: 2 ** 96, denominator: sqrt(token0Amount)}));
     }
 
     /// @notice For given terminalToken amount, compute equivalent projectToken amount at current JuiceboxV4 price
@@ -376,7 +378,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
                     decimals: context.decimals
                 });
 
-        projectTokenOutAmount = mulDiv(terminalTokenInAmount, ruleset.weight, weightRatio);
+        projectTokenOutAmount = mulDiv({x: terminalTokenInAmount, y: ruleset.weight, denominator: weightRatio});
     }
 
     /// @notice Compute Uniswap SqrtPriceX96 for current JuiceboxV4 price
@@ -389,18 +391,22 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         view
         returns (uint160 sqrtPriceX96)
     {
-        (address token0,) = _sortTokens(terminalToken, projectToken);
+        (address token0,) = _sortTokens({tokenA: terminalToken, tokenB: projectToken});
 
         uint256 token0Amount = 10 ** 18;
         uint256 token1Amount;
 
         if (token0 == terminalToken) {
-            token1Amount = _getProjectTokensOutForTerminalTokensIn(projectId, terminalToken, token0Amount);
+            token1Amount = _getProjectTokensOutForTerminalTokensIn({
+                projectId: projectId, terminalToken: terminalToken, terminalTokenInAmount: token0Amount
+            });
         } else {
-            token1Amount = _getTerminalTokensOutForProjectTokensIn(projectId, terminalToken, token0Amount);
+            token1Amount = _getTerminalTokensOutForProjectTokensIn({
+                projectId: projectId, terminalToken: terminalToken, projectTokenInAmount: token0Amount
+            });
         }
 
-        return uint160(mulDiv(sqrt(token1Amount), 2 ** 96, sqrt(token0Amount)));
+        return uint160(mulDiv({x: sqrt(token1Amount), y: 2 ** 96, denominator: sqrt(token0Amount)}));
     }
 
     /// @notice For given projectToken amount, compute equivalent terminalToken amount at current JuiceboxV4 price
@@ -434,7 +440,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
                     decimals: context.decimals
                 });
 
-        terminalTokenOutAmount = mulDiv(projectTokenInAmount, weightRatio, ruleset.weight);
+        terminalTokenOutAmount = mulDiv({x: projectTokenInAmount, y: weightRatio, denominator: ruleset.weight});
     }
 
     /// @notice Get token decimals, defaulting to 18 if unavailable
@@ -467,7 +473,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
 
         if (claimableAmount > 0) {
             address feeProjectToken = address(IJBTokens(TOKENS).tokenOf(FEE_PROJECT_ID));
-            IERC20(feeProjectToken).safeTransfer(beneficiary, claimableAmount);
+            IERC20(feeProjectToken).safeTransfer({to: beneficiary, value: claimableAmount});
             emit FeeTokensClaimed(projectId, beneficiary, claimableAmount);
         }
     }
@@ -493,17 +499,23 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         params[0] = abi.encode(tokenId, uint256(0), uint128(0), uint128(0), "");
         params[1] = abi.encode(key.currency0, key.currency1, address(this));
 
-        POSITION_MANAGER.modifyLiquidities(abi.encode(actions, params), block.timestamp + 60);
+        POSITION_MANAGER.modifyLiquidities({unlockData: abi.encode(actions, params), deadline: block.timestamp + 60});
 
         // Calculate collected amounts
         uint256 amount0 = _currencyBalance(key.currency0) - bal0Before;
         uint256 amount1 = _currencyBalance(key.currency1) - bal1Before;
 
         // Route terminal token fees back to the project
-        _routeCollectedFees(projectId, projectToken, terminalToken, amount0, amount1);
+        _routeCollectedFees({
+            projectId: projectId,
+            projectToken: projectToken,
+            terminalToken: terminalToken,
+            amount0: amount0,
+            amount1: amount1
+        });
 
         // Burn collected project token fees
-        _burnReceivedTokens(projectId, projectToken);
+        _burnReceivedTokens({projectId: projectId, projectToken: projectToken});
     }
 
     /// @notice Deploy a Uniswap V4 pool for a project using accumulated tokens
@@ -542,7 +554,14 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
             address(IJBDirectory(DIRECTORY).primaryTerminalOf({projectId: projectId, token: terminalToken}));
         if (terminal == address(0)) revert JBUniswapV4LPSplitHook_InvalidTerminalToken();
 
-        _deployPoolAndAddLiquidity(projectId, projectToken, terminalToken, amount0Min, amount1Min, minCashOutReturn);
+        _deployPoolAndAddLiquidity({
+            projectId: projectId,
+            projectToken: projectToken,
+            terminalToken: terminalToken,
+            amount0Min: amount0Min,
+            amount1Min: amount1Min,
+            minCashOutReturn: minCashOutReturn
+        });
 
         projectDeployed[projectId][terminalToken] = true;
         deployedPoolCount[projectId]++;
@@ -569,9 +588,9 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
                 (JBRuleset memory ruleset,) = IJBController(controller).currentRulesetOf(context.projectId);
                 initialWeightOf[context.projectId] = ruleset.weight;
             }
-            _accumulateTokens(context.projectId, projectToken, context.amount);
+            _accumulateTokens({projectId: context.projectId, projectToken: projectToken, amount: context.amount});
         } else {
-            _burnReceivedTokens(context.projectId, projectToken);
+            _burnReceivedTokens({projectId: context.projectId, projectToken: projectToken});
         }
     }
 
@@ -615,13 +634,21 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
             feeParams[0] = abi.encode(tokenId, uint256(0), uint128(0), uint128(0), "");
             feeParams[1] = abi.encode(key.currency0, key.currency1, address(this));
 
-            POSITION_MANAGER.modifyLiquidities(abi.encode(feeActions, feeParams), block.timestamp + 60);
+            POSITION_MANAGER.modifyLiquidities({
+                unlockData: abi.encode(feeActions, feeParams), deadline: block.timestamp + 60
+            });
 
             uint256 feeAmount0 = _currencyBalance(key.currency0) - bal0Before;
             uint256 feeAmount1 = _currencyBalance(key.currency1) - bal1Before;
 
-            _routeCollectedFees(projectId, projectToken, terminalToken, feeAmount0, feeAmount1);
-            _burnReceivedTokens(projectId, projectToken);
+            _routeCollectedFees({
+                projectId: projectId,
+                projectToken: projectToken,
+                terminalToken: terminalToken,
+                amount0: feeAmount0,
+                amount1: feeAmount1
+            });
+            _burnReceivedTokens({projectId: projectId, projectToken: projectToken});
         }
 
         // Step 2: Burn position to recover principal via BURN_POSITION + TAKE_PAIR
@@ -634,7 +661,9 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
             burnParams[0] = abi.encode(tokenId, uint128(decreaseAmount0Min), uint128(decreaseAmount1Min), "");
             burnParams[1] = abi.encode(key.currency0, key.currency1, address(this));
 
-            POSITION_MANAGER.modifyLiquidities(abi.encode(burnActions, burnParams), block.timestamp + 60);
+            POSITION_MANAGER.modifyLiquidities({
+                unlockData: abi.encode(burnActions, burnParams), deadline: block.timestamp + 60
+            });
         }
 
         // Step 2: Mint new position with updated tick bounds
@@ -642,29 +671,44 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
             uint256 projectTokenBalance = IERC20(projectToken).balanceOf(address(this));
             uint256 terminalTokenBalance = _getTerminalTokenBalance(terminalToken);
 
-            (int24 tickLower, int24 tickUpper) = _calculateTickBounds(projectId, terminalToken, projectToken);
+            (int24 tickLower, int24 tickUpper) =
+                _calculateTickBounds({projectId: projectId, terminalToken: terminalToken, projectToken: projectToken});
 
             // Get current pool price for liquidity calculation
-            uint160 sqrtPriceX96 = _getSqrtPriceX96ForCurrentJuiceboxPrice(projectId, terminalToken, projectToken);
+            uint160 sqrtPriceX96 = _getSqrtPriceX96ForCurrentJuiceboxPrice({
+                projectId: projectId, terminalToken: terminalToken, projectToken: projectToken
+            });
             uint160 sqrtPriceA = TickMath.getSqrtPriceAtTick(tickLower);
             uint160 sqrtPriceB = TickMath.getSqrtPriceAtTick(tickUpper);
 
             // Sort amounts by currency order
             Currency terminalCurrency = _toCurrency(terminalToken);
-            (address token0,) = _sortTokens(projectToken, Currency.unwrap(terminalCurrency));
+            (address token0,) = _sortTokens({tokenA: projectToken, tokenB: Currency.unwrap(terminalCurrency)});
             uint256 amount0 = projectToken == token0 ? projectTokenBalance : terminalTokenBalance;
             uint256 amount1 = projectToken == token0 ? terminalTokenBalance : projectTokenBalance;
 
             // Calculate liquidity from amounts
-            uint128 liquidity =
-                LiquidityAmounts.getLiquidityForAmounts(sqrtPriceX96, sqrtPriceA, sqrtPriceB, amount0, amount1);
+            uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts({
+                sqrtPriceX96: sqrtPriceX96,
+                sqrtPriceAX96: sqrtPriceA,
+                sqrtPriceBX96: sqrtPriceB,
+                amount0: amount0,
+                amount1: amount1
+            });
 
             if (liquidity > 0) {
                 uint256 newTokenId = POSITION_MANAGER.nextTokenId();
 
-                _mintPosition(
-                    key, tickLower, tickUpper, liquidity, amount0, amount1, increaseAmount0Min, increaseAmount1Min
-                );
+                _mintPosition({
+                    key: key,
+                    tickLower: tickLower,
+                    tickUpper: tickUpper,
+                    liquidity: liquidity,
+                    amount0: amount0,
+                    amount1: amount1,
+                    amount0Min: increaseAmount0Min,
+                    amount1Min: increaseAmount1Min
+                });
 
                 tokenIdOf[projectId][terminalToken] = newTokenId;
             } else {
@@ -677,7 +721,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
             }
 
             // Handle leftover tokens
-            _handleLeftoverTokens(projectId, projectToken, terminalToken);
+            _handleLeftoverTokens({projectId: projectId, projectToken: projectToken, terminalToken: terminalToken});
         }
     }
 
@@ -686,7 +730,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
     //*********************************************************************//
 
     /// @notice Accumulate project tokens in accumulation stage
-    function _accumulateTokens(uint256 projectId, address, uint256 amount) internal {
+    function _accumulateTokens(uint256 projectId, address projectToken, uint256 amount) internal {
         accumulatedProjectTokens[projectId] += amount;
     }
 
@@ -699,7 +743,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         if (terminal == address(0)) return;
 
         if (!isNative) {
-            IERC20(token).forceApprove(terminal, amount);
+            IERC20(token).forceApprove({spender: terminal, value: amount});
         }
 
         IJBMultiTerminal(terminal).addToBalanceOf{value: isNative ? amount : 0}({
@@ -723,16 +767,23 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
 
         if (projectTokenBalance == 0) return;
 
-        (int24 tickLower, int24 tickUpper) = _calculateTickBounds(projectId, terminalToken, projectToken);
+        (int24 tickLower, int24 tickUpper) =
+            _calculateTickBounds({projectId: projectId, terminalToken: terminalToken, projectToken: projectToken});
 
         // Read the pool's actual current price. The pool may have been initialized by another party
         // (e.g. REVDeployer) at a different price than _computeInitialSqrtPrice would return.
         PoolKey memory key = _poolKeys[projectId][terminalToken];
         (uint160 sqrtPriceInit,,,) = POOL_MANAGER.getSlot0(key.toId());
 
-        uint256 cashOutAmount = _computeOptimalCashOutAmount(
-            projectId, terminalToken, projectToken, projectTokenBalance, sqrtPriceInit, tickLower, tickUpper
-        );
+        uint256 cashOutAmount = _computeOptimalCashOutAmount({
+            projectId: projectId,
+            terminalToken: terminalToken,
+            projectToken: projectToken,
+            totalProjectTokens: projectTokenBalance,
+            sqrtPriceInit: sqrtPriceInit,
+            tickLower: tickLower,
+            tickUpper: tickUpper
+        });
 
         // Cash out the computed fraction to get terminal tokens for pairing
         address terminal =
@@ -743,10 +794,10 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         if (terminal != address(0) && cashOutAmount > 0) {
             uint256 effectiveMinReturn = minCashOutReturn;
             if (effectiveMinReturn == 0 && cashOutAmount > 0) {
-                uint256 cashOutRate = _getCashOutRate(projectId, terminalToken);
+                uint256 cashOutRate = _getCashOutRate({projectId: projectId, terminalToken: terminalToken});
                 if (cashOutRate > 0) {
-                    uint256 expectedReturn = mulDiv(cashOutAmount, cashOutRate, 10 ** 18);
-                    effectiveMinReturn = mulDiv(expectedReturn, 99, 100);
+                    uint256 expectedReturn = mulDiv({x: cashOutAmount, y: cashOutRate, denominator: 10 ** 18});
+                    effectiveMinReturn = mulDiv({x: expectedReturn, y: 99, denominator: 100});
                 }
             }
 
@@ -768,25 +819,39 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
 
         // Sort amounts by currency order
         Currency terminalCurrency = _toCurrency(terminalToken);
-        (address token0,) = _sortTokens(projectToken, Currency.unwrap(terminalCurrency));
+        (address token0,) = _sortTokens({tokenA: projectToken, tokenB: Currency.unwrap(terminalCurrency)});
         uint256 amount0 = projectToken == token0 ? projectTokenAmount : terminalTokenAmount;
         uint256 amount1 = projectToken == token0 ? terminalTokenAmount : projectTokenAmount;
 
         // Calculate liquidity from amounts
         uint160 sqrtPriceA = TickMath.getSqrtPriceAtTick(tickLower);
         uint160 sqrtPriceB = TickMath.getSqrtPriceAtTick(tickUpper);
-        uint128 liquidity =
-            LiquidityAmounts.getLiquidityForAmounts(sqrtPriceInit, sqrtPriceA, sqrtPriceB, amount0, amount1);
+        uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts({
+            sqrtPriceX96: sqrtPriceInit,
+            sqrtPriceAX96: sqrtPriceA,
+            sqrtPriceBX96: sqrtPriceB,
+            amount0: amount0,
+            amount1: amount1
+        });
 
         // Record tokenId before minting
         uint256 tokenId = POSITION_MANAGER.nextTokenId();
 
-        _mintPosition(key, tickLower, tickUpper, liquidity, amount0, amount1, amount0Min, amount1Min);
+        _mintPosition({
+            key: key,
+            tickLower: tickLower,
+            tickUpper: tickUpper,
+            liquidity: liquidity,
+            amount0: amount0,
+            amount1: amount1,
+            amount0Min: amount0Min,
+            amount1Min: amount1Min
+        });
 
         tokenIdOf[projectId][terminalToken] = tokenId;
 
         // Handle leftover tokens
-        _handleLeftoverTokens(projectId, projectToken, terminalToken);
+        _handleLeftoverTokens({projectId: projectId, projectToken: projectToken, terminalToken: terminalToken});
 
         // Clear accumulated balances after successful LP creation
         accumulatedProjectTokens[projectId] = 0;
@@ -821,7 +886,12 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
     function _burnReceivedTokens(uint256 projectId, address projectToken) internal {
         uint256 projectTokenBalance = IERC20(projectToken).balanceOf(address(this));
         if (projectTokenBalance > 0) {
-            _burnProjectTokens(projectId, projectToken, projectTokenBalance, "Burning additional tokens");
+            _burnProjectTokens({
+                projectId: projectId,
+                projectToken: projectToken,
+                amount: projectTokenBalance,
+                memo: "Burning additional tokens"
+            });
         }
     }
 
@@ -836,35 +906,48 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         returns (int24 tickLower, int24 tickUpper)
     {
         // Check if the cash out rate can be computed (may round to 0 with low-decimal tokens like USDC).
-        uint256 cashOutRate = _getCashOutRate(projectId, terminalToken);
+        uint256 cashOutRate = _getCashOutRate({projectId: projectId, terminalToken: terminalToken});
 
         if (cashOutRate == 0) {
             // Cash out rate rounds to 0 due to precision loss (e.g. 6-decimal USDC with large token supply).
             // Center the LP range around the issuance price with minimal width.
-            int24 issuanceTick =
-                TickMath.getTickAtSqrtPrice(_getIssuanceRateSqrtPriceX96(projectId, terminalToken, projectToken));
-            issuanceTick = _alignTickToSpacing(issuanceTick, TICK_SPACING);
+            int24 issuanceTick = TickMath.getTickAtSqrtPrice(
+                _getIssuanceRateSqrtPriceX96({
+                    projectId: projectId, terminalToken: terminalToken, projectToken: projectToken
+                })
+            );
+            issuanceTick = _alignTickToSpacing({tick: issuanceTick, spacing: TICK_SPACING});
             tickLower = issuanceTick - TICK_SPACING;
             tickUpper = issuanceTick + TICK_SPACING;
             return (tickLower, tickUpper);
         }
 
-        tickLower = TickMath.getTickAtSqrtPrice(_getCashOutRateSqrtPriceX96(projectId, terminalToken, projectToken));
-        tickUpper = TickMath.getTickAtSqrtPrice(_getIssuanceRateSqrtPriceX96(projectId, terminalToken, projectToken));
+        tickLower = TickMath.getTickAtSqrtPrice(
+            _getCashOutRateSqrtPriceX96({
+                projectId: projectId, terminalToken: terminalToken, projectToken: projectToken
+            })
+        );
+        tickUpper = TickMath.getTickAtSqrtPrice(
+            _getIssuanceRateSqrtPriceX96({
+                projectId: projectId, terminalToken: terminalToken, projectToken: projectToken
+            })
+        );
 
-        tickLower = _alignTickToSpacing(tickLower, TICK_SPACING);
-        tickUpper = _alignTickToSpacing(tickUpper, TICK_SPACING);
+        tickLower = _alignTickToSpacing({tick: tickLower, spacing: TICK_SPACING});
+        tickUpper = _alignTickToSpacing({tick: tickUpper, spacing: TICK_SPACING});
 
         // Clamp to valid V4 tick range after alignment.
-        int24 minUsable = _alignTickToSpacing(TickMath.MIN_TICK, TICK_SPACING) + TICK_SPACING;
-        int24 maxUsable = _alignTickToSpacing(TickMath.MAX_TICK, TICK_SPACING) - TICK_SPACING;
+        int24 minUsable = _alignTickToSpacing({tick: TickMath.MIN_TICK, spacing: TICK_SPACING}) + TICK_SPACING;
+        int24 maxUsable = _alignTickToSpacing({tick: TickMath.MAX_TICK, spacing: TICK_SPACING}) - TICK_SPACING;
         if (tickLower < minUsable) tickLower = minUsable;
         if (tickUpper > maxUsable) tickUpper = maxUsable;
 
         if (tickLower >= tickUpper) {
-            uint160 currentSqrtPrice = _getSqrtPriceX96ForCurrentJuiceboxPrice(projectId, terminalToken, projectToken);
+            uint160 currentSqrtPrice = _getSqrtPriceX96ForCurrentJuiceboxPrice({
+                projectId: projectId, terminalToken: terminalToken, projectToken: projectToken
+            });
             int24 currentTick = TickMath.getTickAtSqrtPrice(currentSqrtPrice);
-            currentTick = _alignTickToSpacing(currentTick, TICK_SPACING);
+            currentTick = _alignTickToSpacing({tick: currentTick, spacing: TICK_SPACING});
             tickLower = currentTick - TICK_SPACING;
             tickUpper = currentTick + TICK_SPACING;
         }
@@ -880,14 +963,20 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         view
         returns (uint160 sqrtPriceX96)
     {
-        uint256 cashOutRate = _getCashOutRate(projectId, terminalToken);
+        uint256 cashOutRate = _getCashOutRate({projectId: projectId, terminalToken: terminalToken});
 
         if (cashOutRate == 0) {
-            return _getIssuanceRateSqrtPriceX96(projectId, terminalToken, projectToken);
+            return _getIssuanceRateSqrtPriceX96({
+                projectId: projectId, terminalToken: terminalToken, projectToken: projectToken
+            });
         }
 
-        uint160 sqrtPriceCashOut = _getCashOutRateSqrtPriceX96(projectId, terminalToken, projectToken);
-        uint160 sqrtPriceIssuance = _getIssuanceRateSqrtPriceX96(projectId, terminalToken, projectToken);
+        uint160 sqrtPriceCashOut = _getCashOutRateSqrtPriceX96({
+            projectId: projectId, terminalToken: terminalToken, projectToken: projectToken
+        });
+        uint160 sqrtPriceIssuance = _getIssuanceRateSqrtPriceX96({
+            projectId: projectId, terminalToken: terminalToken, projectToken: projectToken
+        });
 
         int24 tickCashOut = TickMath.getTickAtSqrtPrice(sqrtPriceCashOut);
         int24 tickIssuance = TickMath.getTickAtSqrtPrice(sqrtPriceIssuance);
@@ -899,12 +988,12 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
             return sqrtPriceIssuance;
         }
 
-        int24 tickMid = _alignTickToSpacing((tickLower + tickUpper) / 2, TICK_SPACING);
+        int24 tickMid = _alignTickToSpacing({tick: (tickLower + tickUpper) / 2, spacing: TICK_SPACING});
 
         int24 minTick = TickMath.MIN_TICK;
         int24 maxTick = TickMath.MAX_TICK;
-        if (tickMid < minTick) tickMid = _alignTickToSpacing(minTick, TICK_SPACING) + TICK_SPACING;
-        if (tickMid > maxTick) tickMid = _alignTickToSpacing(maxTick, TICK_SPACING) - TICK_SPACING;
+        if (tickMid < minTick) tickMid = _alignTickToSpacing({tick: minTick, spacing: TICK_SPACING}) + TICK_SPACING;
+        if (tickMid > maxTick) tickMid = _alignTickToSpacing({tick: maxTick, spacing: TICK_SPACING}) - TICK_SPACING;
 
         return TickMath.getSqrtPriceAtTick(tickMid);
     }
@@ -923,7 +1012,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         view
         returns (uint256 cashOutAmount)
     {
-        uint256 cashOutRate = _getCashOutRate(projectId, terminalToken);
+        uint256 cashOutRate = _getCashOutRate({projectId: projectId, terminalToken: terminalToken});
 
         if (cashOutRate == 0) return 0;
 
@@ -949,18 +1038,18 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         uint256 diffB_PriceInit = uint256(sqrtPriceB) - uint256(sqrtPriceInit);
 
         if (terminalIsToken0) {
-            numerator = mulDiv(diffPriceInit_A, uint256(sqrtPriceB), diffB_PriceInit);
+            numerator = mulDiv({x: diffPriceInit_A, y: uint256(sqrtPriceB), denominator: diffB_PriceInit});
             denominator = uint256(sqrtPriceInit);
         } else {
-            numerator = mulDiv(uint256(sqrtPriceInit), diffPriceInit_A, diffB_PriceInit);
+            numerator = mulDiv({x: uint256(sqrtPriceInit), y: diffPriceInit_A, denominator: diffB_PriceInit});
             denominator = 1;
         }
 
         uint256 ratioE18;
         if (terminalIsToken0) {
-            ratioE18 = mulDiv(numerator, 10 ** 18, denominator);
+            ratioE18 = mulDiv({x: numerator, y: 10 ** 18, denominator: denominator});
         } else {
-            ratioE18 = mulDiv(numerator, 10 ** 18, 1);
+            ratioE18 = mulDiv({x: numerator, y: 10 ** 18, denominator: 1});
         }
 
         if (ratioE18 == 0) return 0;
@@ -968,7 +1057,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         uint256 denom = cashOutRate + ratioE18;
         if (denom == 0) return 0;
 
-        cashOutAmount = mulDiv(totalProjectTokens, ratioE18, denom);
+        cashOutAmount = mulDiv({x: totalProjectTokens, y: ratioE18, denominator: denom});
 
         uint256 maxCashOut = totalProjectTokens / 2;
         if (cashOutAmount > maxCashOut) cashOutAmount = maxCashOut;
@@ -997,10 +1086,11 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         });
 
         // Compute initial price at geometric mean of [cashOutRate, issuanceRate]
-        uint160 sqrtPriceX96 = _computeInitialSqrtPrice(projectId, terminalToken, projectToken);
+        uint160 sqrtPriceX96 =
+            _computeInitialSqrtPrice({projectId: projectId, terminalToken: terminalToken, projectToken: projectToken});
 
         // Initialize pool (safe if already exists — returns type(int24).max)
-        POSITION_MANAGER.initializePool(key, sqrtPriceX96);
+        POSITION_MANAGER.initializePool({key: key, sqrtPriceX96: sqrtPriceX96});
 
         // Store the pool key
         _poolKeys[projectId][terminalToken] = key;
@@ -1027,10 +1117,17 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         internal
     {
         if (tokenIdOf[projectId][terminalToken] == 0) {
-            _createAndInitializePool(projectId, projectToken, terminalToken);
+            _createAndInitializePool({projectId: projectId, projectToken: projectToken, terminalToken: terminalToken});
         }
 
-        _addUniswapLiquidity(projectId, projectToken, terminalToken, amount0Min, amount1Min, minCashOutReturn);
+        _addUniswapLiquidity({
+            projectId: projectId,
+            projectToken: projectToken,
+            terminalToken: terminalToken,
+            amount0Min: amount0Min,
+            amount1Min: amount1Min,
+            minCashOutReturn: minCashOutReturn
+        });
     }
 
     /// @notice Get terminal token balance held by this contract
@@ -1046,13 +1143,23 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         // Burn any remaining project tokens
         uint256 projectTokenLeftover = IERC20(projectToken).balanceOf(address(this));
         if (projectTokenLeftover > 0) {
-            _burnProjectTokens(projectId, projectToken, projectTokenLeftover, "Burning leftover project tokens");
+            _burnProjectTokens({
+                projectId: projectId,
+                projectToken: projectToken,
+                amount: projectTokenLeftover,
+                memo: "Burning leftover project tokens"
+            });
         }
 
         // Add any remaining terminal tokens to project balance
         uint256 terminalTokenLeftover = _getTerminalTokenBalance(terminalToken);
         if (terminalTokenLeftover > 0) {
-            _addToProjectBalance(projectId, terminalToken, terminalTokenLeftover, _isNativeToken(terminalToken));
+            _addToProjectBalance({
+                projectId: projectId,
+                token: terminalToken,
+                amount: terminalTokenLeftover,
+                isNative: _isNativeToken(terminalToken)
+            });
         }
     }
 
@@ -1069,8 +1176,8 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         uint128 liquidity,
         uint256 amount0,
         uint256 amount1,
-        uint256,
-        uint256
+        uint256 amount0Min,
+        uint256 amount1Min
     )
         internal
     {
@@ -1084,14 +1191,14 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
             // currency0 is native ETH
             ethValue = amount0;
         } else if (amount0 > 0) {
-            _approveViaPermit2(token0, amount0);
+            _approveViaPermit2({token: token0, amount: amount0});
         }
 
         if (token1 == address(0)) {
             // currency1 is native ETH (shouldn't happen since ETH is always currency0)
             ethValue = amount1;
         } else if (amount1 > 0) {
-            _approveViaPermit2(token1, amount1);
+            _approveViaPermit2({token: token1, amount: amount1});
         }
 
         bytes memory actions = abi.encodePacked(
@@ -1117,15 +1224,22 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         // SWEEP leftover currency1 back to this contract
         params[4] = abi.encode(key.currency1, address(this));
 
-        POSITION_MANAGER.modifyLiquidities{value: ethValue}(abi.encode(actions, params), block.timestamp + 60);
+        POSITION_MANAGER.modifyLiquidities{value: ethValue}({
+            unlockData: abi.encode(actions, params), deadline: block.timestamp + 60
+        });
     }
 
     /// @notice Approve an ERC20 token via Permit2 so PositionManager can pull it during SETTLE.
     function _approveViaPermit2(address token, uint256 amount) internal {
-        IERC20(token).forceApprove(address(PERMIT2), amount);
+        IERC20(token).forceApprove({spender: address(PERMIT2), value: amount});
         // Safe: amount is bounded by token balance (fits uint160); block.timestamp + 60 fits uint48.
         // forge-lint: disable-next-line(unsafe-typecast)
-        PERMIT2.approve(token, address(POSITION_MANAGER), uint160(amount), uint48(block.timestamp + 60));
+        PERMIT2.approve({
+            token: token,
+            spender: address(POSITION_MANAGER),
+            amount: uint160(amount),
+            expiration: uint48(block.timestamp + 60)
+        });
     }
 
     /// @notice Route collected fees from Uniswap position to project
@@ -1142,14 +1256,14 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         if (amount0 == 0 && amount1 == 0) return;
 
         Currency terminalCurrency = _toCurrency(terminalToken);
-        (address token0,) = _sortTokens(projectToken, Currency.unwrap(terminalCurrency));
+        (address token0,) = _sortTokens({tokenA: projectToken, tokenB: Currency.unwrap(terminalCurrency)});
 
         // Route terminal token fees
         if (amount0 > 0 && token0 == Currency.unwrap(terminalCurrency)) {
-            _routeFeesToProject(projectId, terminalToken, amount0);
+            _routeFeesToProject({projectId: projectId, terminalToken: terminalToken, amount: amount0});
         }
         if (amount1 > 0 && token0 != Currency.unwrap(terminalCurrency)) {
-            _routeFeesToProject(projectId, terminalToken, amount1);
+            _routeFeesToProject({projectId: projectId, terminalToken: terminalToken, amount: amount1});
         }
     }
 
@@ -1180,7 +1294,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
                         metadata: ""
                     });
                 } else {
-                    IERC20(terminalToken).forceApprove(feeTerminal, feeAmount);
+                    IERC20(terminalToken).forceApprove({spender: feeTerminal, value: feeAmount});
                     IJBMultiTerminal(feeTerminal)
                         .pay({
                             projectId: FEE_PROJECT_ID,
@@ -1201,7 +1315,12 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         }
 
         if (remainingAmount > 0) {
-            _addToProjectBalance(projectId, terminalToken, remainingAmount, _isNativeToken(terminalToken));
+            _addToProjectBalance({
+                projectId: projectId,
+                token: terminalToken,
+                amount: remainingAmount,
+                isNative: _isNativeToken(terminalToken)
+            });
         }
 
         emit LPFeesRouted(projectId, terminalToken, amount, feeAmount, remainingAmount, beneficiaryTokenCount);
