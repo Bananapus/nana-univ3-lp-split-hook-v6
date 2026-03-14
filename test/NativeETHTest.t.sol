@@ -6,6 +6,7 @@ import {JBUniswapV4LPSplitHook} from "../src/JBUniswapV4LPSplitHook.sol";
 import {IJBPermissions} from "@bananapus/core-v6/src/interfaces/IJBPermissions.sol";
 import {JBConstants} from "@bananapus/core-v6/src/libraries/JBConstants.sol";
 import {JBAccountingContext} from "@bananapus/core-v6/src/structs/JBAccountingContext.sol";
+import {IAllowanceTransfer} from "@uniswap/permit2/src/interfaces/IAllowanceTransfer.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
@@ -17,9 +18,12 @@ contract TestableHookForETH is JBUniswapV4LPSplitHook {
         IJBPermissions _permissions,
         address _tokens,
         IPoolManager _poolManager,
-        IPositionManager _positionManager
+        IPositionManager _positionManager,
+        IAllowanceTransfer _permit2
     )
-        JBUniswapV4LPSplitHook(_directory, _permissions, _tokens, _poolManager, _positionManager, IHooks(address(0)))
+        JBUniswapV4LPSplitHook(
+            _directory, _permissions, _tokens, _poolManager, _positionManager, _permit2, IHooks(address(0))
+        )
     {}
 
     // forge-lint: disable-next-line(mixed-case-function)
@@ -43,7 +47,8 @@ contract NativeETHTest is LPSplitHookV4TestBase {
             IJBPermissions(address(permissions)),
             address(jbTokens),
             IPoolManager(address(1)),
-            IPositionManager(address(positionManager))
+            IPositionManager(address(positionManager)),
+            IAllowanceTransfer(address(0))
         );
         testableHook.initialize(FEE_PROJECT_ID, FEE_PERCENT);
     }

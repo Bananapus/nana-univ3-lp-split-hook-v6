@@ -91,8 +91,24 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
     /// @notice Tick spacing for 1% fee tier (200 ticks)
     int24 public constant TICK_SPACING = 200;
 
-    /// @notice Canonical Permit2 contract used by PositionManager to pull ERC20 tokens
-    IAllowanceTransfer public constant PERMIT2 = IAllowanceTransfer(0x000000000022D473030F116dDEE9F6B43aC78BA3);
+    //*********************************************************************//
+    // ----------------------- internal constants ------------------------ //
+    //*********************************************************************//
+
+    /// @notice Default minimum cash-out return as a fraction of expected return (99/100 = 1% slippage tolerance).
+    uint256 internal constant _CASH_OUT_SLIPPAGE_DENOMINATOR = 100;
+
+    /// @notice Default minimum cash-out return numerator (99 out of 100 = 1% slippage tolerance).
+    uint256 internal constant _CASH_OUT_SLIPPAGE_NUMERATOR = 99;
+
+    /// @notice Deadline window (in seconds) for PositionManager and Permit2 operations.
+    uint256 internal constant _DEADLINE_SECONDS = 60;
+
+    /// @notice Uniswap V4 Q96 fixed-point scale factor for sqrtPriceX96 values.
+    uint256 internal constant _Q96 = 2 ** 96;
+
+    /// @notice 1e18 scale factor used as a unit amount in rate calculations.
+    uint256 internal constant _WAD = 10 ** 18;
 
     //*********************************************************************//
     // --------------- public immutable stored properties ---------------- //
@@ -101,8 +117,11 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
     /// @notice JBDirectory (to find important control contracts for given projectId)
     address public immutable DIRECTORY;
 
-    /// @notice JBTokens (to find project tokens)
-    address public immutable TOKENS;
+    /// @notice The oracle hook used for all JB V4 pools (provides TWAP via observe()).
+    IHooks public immutable ORACLE_HOOK;
+
+    /// @notice The Permit2 utility used to approve tokens for PositionManager.
+    IAllowanceTransfer public immutable PERMIT2;
 
     /// @notice Uniswap V4 PoolManager address
     IPoolManager public immutable POOL_MANAGER;
@@ -110,8 +129,8 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
     /// @notice Uniswap V4 PositionManager address
     IPositionManager public immutable POSITION_MANAGER;
 
-    /// @notice The oracle hook used for all JB V4 pools (provides TWAP via observe()).
-    IHooks public immutable ORACLE_HOOK;
+    /// @notice JBTokens (to find project tokens)
+    address public immutable TOKENS;
 
     /// @notice Project ID to receive LP fees
     // forge-lint: disable-next-line(mixed-case-variable)
@@ -160,6 +179,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
     /// @param tokens JBTokens address
     /// @param poolManager Uniswap V4 PoolManager address
     /// @param positionManager Uniswap V4 PositionManager address
+    /// @param permit2 The Permit2 utility.
     /// @param oracleHook The oracle hook for all JB V4 pools (provides TWAP via observe()).
     constructor(
         address directory,
@@ -167,6 +187,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         address tokens,
         IPoolManager poolManager,
         IPositionManager positionManager,
+        IAllowanceTransfer permit2,
         IHooks oracleHook
     )
         JBPermissioned(permissions)
@@ -177,10 +198,11 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         if (address(positionManager) == address(0)) revert JBUniswapV4LPSplitHook_ZeroAddressNotAllowed();
 
         DIRECTORY = directory;
-        TOKENS = tokens;
+        ORACLE_HOOK = oracleHook;
+        PERMIT2 = permit2;
         POOL_MANAGER = poolManager;
         POSITION_MANAGER = positionManager;
-        ORACLE_HOOK = oracleHook;
+        TOKENS = tokens;
     }
 
     /// @notice Initialize per-instance config on a clone. Can only be called once.
@@ -248,7 +270,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
             ).STORE()
             .currentReclaimableSurplusOf({
                 projectId: projectId,
-                cashOutCount: 10 ** 18,
+                cashOutCount: _WAD,
                 terminals: new IJBTerminal[](0),
                 accountingContexts: new JBAccountingContext[](0),
                 decimals: _getTokenDecimals(terminalToken),
@@ -281,16 +303,16 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         // If the cash out rate is 0 (no surplus or negligible surplus), return the minimum price.
         if (terminalTokensPerProjectToken == 0) return TickMath.MIN_SQRT_PRICE;
 
-        uint256 token0Amount = 10 ** 18;
+        uint256 token0Amount = _WAD;
         uint256 token1Amount;
 
         if (token0 == terminalToken) {
-            token1Amount = mulDiv({x: token0Amount, y: 10 ** 18, denominator: terminalTokensPerProjectToken});
+            token1Amount = mulDiv({x: token0Amount, y: _WAD, denominator: terminalTokensPerProjectToken});
         } else {
             token1Amount = terminalTokensPerProjectToken;
         }
 
-        return uint160(mulDiv({x: sqrt(token1Amount), y: 2 ** 96, denominator: sqrt(token0Amount)}));
+        return uint160(mulDiv({x: sqrt(token1Amount), y: _Q96, denominator: sqrt(token0Amount)}));
     }
 
     /// @notice Calculate the issuance rate (price ceiling)
@@ -309,7 +331,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         uint16 reservedPercent = JBRulesetMetadataResolver.reservedPercent(ruleset);
 
         uint256 tokensPerTerminalToken = _getProjectTokensOutForTerminalTokensIn({
-            projectId: projectId, terminalToken: terminalToken, terminalTokenInAmount: 10 ** 18
+            projectId: projectId, terminalToken: terminalToken, terminalTokenInAmount: _WAD
         });
 
         if (reservedPercent > 0) {
@@ -337,16 +359,16 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
 
         uint256 projectTokensPerTerminalToken = _getIssuanceRate({projectId: projectId, terminalToken: terminalToken});
 
-        uint256 token0Amount = 10 ** 18;
+        uint256 token0Amount = _WAD;
         uint256 token1Amount;
 
         if (token0 == terminalToken) {
             token1Amount = projectTokensPerTerminalToken;
         } else {
-            token1Amount = mulDiv({x: token0Amount, y: 10 ** 18, denominator: projectTokensPerTerminalToken});
+            token1Amount = mulDiv({x: token0Amount, y: _WAD, denominator: projectTokensPerTerminalToken});
         }
 
-        return uint160(mulDiv({x: sqrt(token1Amount), y: 2 ** 96, denominator: sqrt(token0Amount)}));
+        return uint160(mulDiv({x: sqrt(token1Amount), y: _Q96, denominator: sqrt(token0Amount)}));
     }
 
     /// @notice For given terminalToken amount, compute equivalent projectToken amount at current JuiceboxV4 price
@@ -395,7 +417,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
     {
         (address token0,) = _sortTokens({tokenA: terminalToken, tokenB: projectToken});
 
-        uint256 token0Amount = 10 ** 18;
+        uint256 token0Amount = _WAD;
         uint256 token1Amount;
 
         if (token0 == terminalToken) {
@@ -408,7 +430,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
             });
         }
 
-        return uint160(mulDiv({x: sqrt(token1Amount), y: 2 ** 96, denominator: sqrt(token0Amount)}));
+        return uint160(mulDiv({x: sqrt(token1Amount), y: _Q96, denominator: sqrt(token0Amount)}));
     }
 
     /// @notice For given projectToken amount, compute equivalent terminalToken amount at current JuiceboxV4 price
@@ -501,7 +523,9 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         params[0] = abi.encode(tokenId, uint256(0), uint128(0), uint128(0), "");
         params[1] = abi.encode(key.currency0, key.currency1, address(this));
 
-        POSITION_MANAGER.modifyLiquidities({unlockData: abi.encode(actions, params), deadline: block.timestamp + 60});
+        POSITION_MANAGER.modifyLiquidities({
+            unlockData: abi.encode(actions, params), deadline: block.timestamp + _DEADLINE_SECONDS
+        });
 
         // Calculate collected amounts
         uint256 amount0 = _currencyBalance(key.currency0) - bal0Before;
@@ -625,7 +649,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
             feeParams[1] = abi.encode(key.currency0, key.currency1, address(this));
 
             POSITION_MANAGER.modifyLiquidities({
-                unlockData: abi.encode(feeActions, feeParams), deadline: block.timestamp + 60
+                unlockData: abi.encode(feeActions, feeParams), deadline: block.timestamp + _DEADLINE_SECONDS
             });
 
             uint256 feeAmount0 = _currencyBalance(key.currency0) - bal0Before;
@@ -652,7 +676,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
             burnParams[1] = abi.encode(key.currency0, key.currency1, address(this));
 
             POSITION_MANAGER.modifyLiquidities({
-                unlockData: abi.encode(burnActions, burnParams), deadline: block.timestamp + 60
+                unlockData: abi.encode(burnActions, burnParams), deadline: block.timestamp + _DEADLINE_SECONDS
             });
         }
 
@@ -782,8 +806,10 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
             if (effectiveMinReturn == 0 && cashOutAmount > 0) {
                 uint256 cashOutRate = _getCashOutRate({projectId: projectId, terminalToken: terminalToken});
                 if (cashOutRate > 0) {
-                    uint256 expectedReturn = mulDiv({x: cashOutAmount, y: cashOutRate, denominator: 10 ** 18});
-                    effectiveMinReturn = mulDiv({x: expectedReturn, y: 99, denominator: 100});
+                    uint256 expectedReturn = mulDiv({x: cashOutAmount, y: cashOutRate, denominator: _WAD});
+                    effectiveMinReturn = mulDiv({
+                        x: expectedReturn, y: _CASH_OUT_SLIPPAGE_NUMERATOR, denominator: _CASH_OUT_SLIPPAGE_DENOMINATOR
+                    });
                 }
             }
 
@@ -1031,9 +1057,9 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
 
         uint256 ratioE18;
         if (terminalIsToken0) {
-            ratioE18 = mulDiv({x: numerator, y: 10 ** 18, denominator: denominator});
+            ratioE18 = mulDiv({x: numerator, y: _WAD, denominator: denominator});
         } else {
-            ratioE18 = mulDiv({x: numerator, y: 10 ** 18, denominator: 1});
+            ratioE18 = mulDiv({x: numerator, y: _WAD, denominator: 1});
         }
 
         if (ratioE18 == 0) return 0;
@@ -1211,21 +1237,21 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         params[4] = abi.encode(key.currency1, address(this));
 
         POSITION_MANAGER.modifyLiquidities{value: ethValue}({
-            unlockData: abi.encode(actions, params), deadline: block.timestamp + 60
+            unlockData: abi.encode(actions, params), deadline: block.timestamp + _DEADLINE_SECONDS
         });
     }
 
     /// @notice Approve an ERC20 token via Permit2 so PositionManager can pull it during SETTLE.
     function _approveViaPermit2(address token, uint256 amount) internal {
         IERC20(token).forceApprove({spender: address(PERMIT2), value: amount});
-        // Safe: amount is bounded by token balance (fits uint160); block.timestamp + 60 fits uint48.
+        // Safe: amount is bounded by token balance (fits uint160); block.timestamp + _DEADLINE_SECONDS fits uint48.
         PERMIT2.approve({
             token: token,
             spender: address(POSITION_MANAGER),
             // forge-lint: disable-next-line(unsafe-typecast)
             amount: uint160(amount),
             // forge-lint: disable-next-line(unsafe-typecast)
-            expiration: uint48(block.timestamp + 60)
+            expiration: uint48(block.timestamp + _DEADLINE_SECONDS)
         });
     }
 

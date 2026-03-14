@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
+import {IAllowanceTransfer} from "@uniswap/permit2/src/interfaces/IAllowanceTransfer.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 
 /// @notice Manages a two-stage Uniswap V4 pool deployment process for Juicebox projects, routing LP fees back to the
@@ -45,6 +46,10 @@ interface IJBUniswapV4LPSplitHook {
     /// @param terminalToken The terminal token address.
     /// @return deployed True if pool exists.
     function isPoolDeployed(uint256 projectId, address terminalToken) external view returns (bool deployed);
+
+    /// @notice The Permit2 utility.
+    // forge-lint: disable-next-line(mixed-case-function)
+    function PERMIT2() external view returns (IAllowanceTransfer);
 
     /// @notice Get the PoolKey for a deployed project/terminal token pair.
     /// @param projectId The Juicebox project ID.

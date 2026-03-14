@@ -37,6 +37,7 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
+import {IAllowanceTransfer} from "@uniswap/permit2/src/interfaces/IAllowanceTransfer.sol";
 import {IPermit2} from "@uniswap/permit2/src/interfaces/IPermit2.sol";
 
 // Hook under test.
@@ -135,6 +136,7 @@ contract LPSplitHookForkTest is Test {
             address(jbTokens),
             V4_POOL_MANAGER,
             V4_POSITION_MANAGER,
+            IAllowanceTransfer(address(PERMIT2)),
             IHooks(address(0))
         );
         hook = JBUniswapV4LPSplitHook(payable(LibClone.clone(address(hookImpl))));

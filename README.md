@@ -61,7 +61,7 @@ V4 concentrated liquidity positions aren't 50/50 -- the token ratio depends on w
 
 | Contract | Description |
 |----------|-------------|
-| `JBUniswapV4LPSplitHook` | `IJBSplitHook` implementation with a two-stage lifecycle. Accumulates project tokens before deployment, burns them after. Creates V4 pools (with `ORACLE_HOOK` for TWAP), mints/rebalances LP positions, collects and routes fees. Constructor takes 6 params: `directory`, `permissions`, `tokens`, `poolManager`, `positionManager`, `oracleHook`. Inherits `JBPermissioned`. Each clone is initialized with `feeProjectId` and `feePercent`. |
+| `JBUniswapV4LPSplitHook` | `IJBSplitHook` implementation with a two-stage lifecycle. Accumulates project tokens before deployment, burns them after. Creates V4 pools (with `ORACLE_HOOK` for TWAP), mints/rebalances LP positions, collects and routes fees. Constructor takes 7 params: `directory`, `permissions`, `tokens`, `poolManager`, `positionManager`, `permit2`, `oracleHook`. Inherits `JBPermissioned`. Each clone is initialized with `feeProjectId` and `feePercent`. |
 | `JBUniswapV4LPSplitHookDeployer` | Factory that deploys hook clones via `LibClone`. Supports deterministic CREATE2 deployment with caller-scoped salts. Registers each deployment in `JBAddressRegistry`. Anyone can deploy a new hook by providing `feeProjectId` and `feePercent`. |
 
 ### Interfaces
