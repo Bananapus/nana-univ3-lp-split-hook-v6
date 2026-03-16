@@ -148,7 +148,7 @@ Juicebox reserved-token split hook that accumulates project tokens, deploys a Un
 12. **Native ETH handling:** Juicebox uses `JBConstants.NATIVE_TOKEN` (`0x000000000000000000000000000000000000EEEe`), V4 uses `Currency.wrap(address(0))`. The hook converts between them via `_toCurrency()`. The contract has `receive() external payable {}` to accept ETH during cash-outs and V4 TAKE operations.
 13. **Deployed as clones via factory.** `JBUniswapV4LPSplitHookDeployer` uses Solady's `LibClone`. The constructor takes 7 params (`directory`, `permissions`, `tokens`, `poolManager`, `positionManager`, `permit2`, `oracleHook`) and sets shared infrastructure. Per-clone config (fee project, fee percent) is set via `initialize()`, which can only be called once.
 14. **Tick alignment:** All ticks are aligned to `TICK_SPACING = 200`. Negative ticks use floor semantics in `_alignTickToSpacing()`.
-15. **`minCashOutReturn = 0` defaults to 1% tolerance.** If no minimum is specified for `deployPool`, the hook applies a 1% slippage tolerance on the cash-out automatically.
+15. **`minCashOutReturn = 0` defaults to 3% tolerance.** If no minimum is specified for `deployPool`, the hook applies a 3% slippage tolerance on the cash-out automatically. Widened from 1% because the linear cash-out estimate diverges from the bonding curve at higher cashOutTaxRates.
 16. **Fee routing splits terminal token fees only.** Project token fees are always burned. Terminal token fees are split: `FEE_PERCENT` to fee project via `terminal.pay()`, remainder to original project via `addToBalanceOf()`.
 17. **Deterministic clone deployment** via CREATE2 uses `keccak256(abi.encode(msg.sender, salt))`, so different callers with the same salt get different addresses.
 
@@ -177,7 +177,7 @@ hook.deployPool({
     terminalToken: JBConstants.NATIVE_TOKEN,  // ETH
     amount0Min: 0,                            // slippage (0 = no check)
     amount1Min: 0,                            // slippage (0 = no check)
-    minCashOutReturn: 0                       // 0 = auto 1% tolerance
+    minCashOutReturn: 0                       // 0 = auto 3% tolerance
 });
 
 // --- Periodically collect and route LP fees (permissionless) ---
