@@ -58,8 +58,8 @@ A Nemesis audit (`.audit/findings/nemesis-verified.md`) identified 6 true positi
 
 - **Severity:** MEDIUM (inherent to AMM design)
 - **Tested:** Not directly tested. The tick bounds are tested in `PriceMathTest.t.sol` (test_TickBounds_Normal, test_TickBounds_AlignedToSpacing).
-- **Lines:** 798-820 (_calculateTickBounds), 862-922 (_computeOptimalCashOutAmount)
-- **Description:** The LP position is concentrated between the cashout rate (price floor, line 807) and issuance rate (price ceiling, line 808). If the market price moves outside this range, the position becomes 100% single-sided and stops earning fees. Concentrated liquidity amplifies impermanent loss compared to full-range V3/V2 positions. With a 1% fee tier and 200-tick spacing, the position range is relatively wide, limiting but not eliminating this risk.
+- **Lines:** 911-972 (_calculateTickBounds), 1020-1080 (_computeOptimalCashOutAmount)
+- **Description:** The LP position is concentrated between the cashout rate (price floor) and issuance rate (price ceiling), with ticks sorted so tickLower <= tickUpper regardless of token ordering (lines 937-952). If the market price moves outside this range, the position becomes 100% single-sided and stops earning fees. Concentrated liquidity amplifies impermanent loss compared to full-range V3/V2 positions. With a 1% fee tier and 200-tick spacing, the position range is relatively wide, limiting but not eliminating this risk.
 - **Mitigation:** `rebalanceLiquidity` allows repositioning to track changing rates. The tick range is derived from the project's actual issuance and cashout parameters, so it tracks fundamental value.
 
 #### M-2. Initial Pool Price Manipulation
@@ -74,7 +74,7 @@ A Nemesis audit (`.audit/findings/nemesis-verified.md`) identified 6 true positi
   3. Pool is created at an artificially high cashout rate.
   4. Attacker cashes out, reducing surplus back to normal.
   5. The pool's initial price is now misaligned, creating arbitrage profit for the attacker.
-- **Mitigation:** The bonding curve math in JB core limits the degree of price manipulation. The `minCashOutReturn` parameter (line 496) provides slippage protection on the cash-out portion. The 1% auto-tolerance (line 716-721) provides a default safety margin.
+- **Mitigation:** The bonding curve math in JB core limits the degree of price manipulation. The `minCashOutReturn` parameter (line 496) provides slippage protection on the cash-out portion. The 3% auto-tolerance (lines 808-816) provides a default safety margin.
 
 #### M-3. Token Accumulation Period: No Yield, Counterparty Risk
 
