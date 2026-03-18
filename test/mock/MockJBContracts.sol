@@ -316,6 +316,7 @@ contract MockJBMultiTerminal {
     uint256 public addToBalanceCallCount;
     uint256 public lastPayProjectId;
     uint256 public lastPayAmount;
+    uint256 public lastPayMinReturnedTokens;
     uint256 public lastCashOutAmount;
 
     // Override return amounts
@@ -379,8 +380,7 @@ contract MockJBMultiTerminal {
         /* token */
         uint256 amount,
         address beneficiary,
-        uint256,
-        /* minReturnedTokens */
+        uint256 minReturnedTokens,
         string calldata,
         /* memo */
         bytes calldata /* metadata */
@@ -392,6 +392,7 @@ contract MockJBMultiTerminal {
         payCallCount++;
         lastPayProjectId = projectId;
         lastPayAmount = amount;
+        lastPayMinReturnedTokens = minReturnedTokens;
 
         if (usePayReturnOverride) {
             beneficiaryTokenCount = payReturnAmount;

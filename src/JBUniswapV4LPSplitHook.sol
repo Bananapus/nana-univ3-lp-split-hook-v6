@@ -3,6 +3,7 @@ pragma solidity 0.8.26;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import {SafeCast} from "@openzeppelin/contracts/utils/math/SafeCast.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {mulDiv, sqrt} from "@prb/math/src/Common.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
@@ -606,6 +607,14 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
                 initialWeightOf[context.projectId] = ruleset.weight;
             }
             _accumulateTokens({projectId: context.projectId, amount: context.amount});
+
+            // Defense-in-depth: verify actual balance covers accumulated accounting.
+            if (projectToken != address(0)) {
+                require(
+                    IERC20(projectToken).balanceOf(address(this)) >= accumulatedProjectTokens[context.projectId],
+                    "Balance underflow"
+                );
+            }
         } else {
             _burnReceivedTokens({projectId: context.projectId, projectToken: projectToken});
         }
@@ -1259,8 +1268,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         PERMIT2.approve({
             token: token,
             spender: address(POSITION_MANAGER),
-            // forge-lint: disable-next-line(unsafe-typecast)
-            amount: uint160(amount),
+            amount: SafeCast.toUint160(amount),
             // forge-lint: disable-next-line(unsafe-typecast)
             expiration: uint48(block.timestamp + _DEADLINE_SECONDS)
         });
@@ -1319,18 +1327,18 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
 
                 // Fee terminal revert blocks fee collection — accepted since the fee project is
                 // protocol-controlled and expected to maintain a functioning terminal.
-                // minReturnedTokens is 0 by design: slippage protection is the fee project's
-                // responsibility (via its own data hook / buyback hook), not this contract's.
-                // Setting a floor here would risk reverting on small fee amounts where
-                // mulDiv rounding yields 0 tokens, and any non-trivial floor would require
-                // an oracle dependency that doesn't belong in the LP split hook.
+                // minReturnedTokens is 1 as a minimal MEV-protection floor: ensures
+                // fee payments always produce at least 1 token, preventing zero-output
+                // sandwich attacks. A higher floor would require an oracle dependency
+                // that doesn't belong in the LP split hook; the fee project's own data
+                // hook / buyback hook handles further slippage protection.
                 if (_isNativeToken(terminalToken)) {
                     IJBMultiTerminal(feeTerminal).pay{value: feeAmount}({
                         projectId: FEE_PROJECT_ID,
                         token: terminalToken,
                         amount: feeAmount,
                         beneficiary: address(this),
-                        minReturnedTokens: 0,
+                        minReturnedTokens: 1,
                         memo: "LP Fee",
                         metadata: ""
                     });
@@ -1342,7 +1350,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
                             token: terminalToken,
                             amount: feeAmount,
                             beneficiary: address(this),
-                            minReturnedTokens: 0,
+                            minReturnedTokens: 1,
                             memo: "LP Fee",
                             metadata: ""
                         });

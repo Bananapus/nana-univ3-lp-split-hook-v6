@@ -326,4 +326,25 @@ contract FeeRoutingTest is LPSplitHookV4TestBase {
 
         hook.collectAndRouteLPFees(PROJECT_ID, address(terminalToken));
     }
+
+    // -----------------------------------------------------------------------
+    // 14. H-1 Regression: fee routing uses minReturnedTokens >= 1
+    // -----------------------------------------------------------------------
+
+    /// @notice terminal.pay() in _routeFeesToProject must use minReturnedTokens >= 1
+    ///         to prevent zero-output MEV extraction on fee payments.
+    function test_H1_feeRouting_minReturnedTokens_nonZero() public {
+        uint256 feeAmount = 1000e18;
+        _setTerminalTokenFees(feeAmount);
+
+        hook.collectAndRouteLPFees(PROJECT_ID, address(terminalToken));
+
+        // The mock terminal records the minReturnedTokens argument from the last pay() call.
+        // Verify it is at least 1 (not 0).
+        assertGe(
+            terminal.lastPayMinReturnedTokens(),
+            1,
+            "H-1: terminal.pay must use minReturnedTokens >= 1 to prevent zero-output MEV"
+        );
+    }
 }
