@@ -254,9 +254,8 @@ contract SplitHookRegressionsTest is LPSplitHookV4TestBase {
         );
     }
 
-    /// @notice Demonstrates that multiple terminal tokens can have independent
-    ///         projectDeployed flags per the new mapping structure.
-    function test_M2_multiTerminalToken_independentFlags() public {
+    /// @notice Once any pool is deployed, the hook rejects a second terminal-token pool for the project.
+    function test_M2_multiTerminalToken_secondDeployReverts() public {
         // PROJECT_ID already has a pool for terminalToken
         assertTrue(
             hook.isPoolDeployed(PROJECT_ID, address(terminalToken)), "First terminal token pool should be deployed"
@@ -288,9 +287,9 @@ contract SplitHookRegressionsTest is LPSplitHookV4TestBase {
             hook.isPoolDeployed(PROJECT_ID, address(terminalToken)), "First terminal token should still be deployed"
         );
 
-        // Note: processSplitWith limitation -- it uses deployedPoolCount (per-project) to decide
-        // accumulate vs burn. Once any pool is deployed, all subsequent splits burn tokens.
-        // A future improvement could track per-terminal-token accumulation, but this requires
-        // the split context to include the terminal token, which it currently does not.
+        projectToken.mint(address(hook), 10e18);
+        vm.expectRevert(JBUniswapV4LPSplitHook.JBUniswapV4LPSplitHook_OnlyOneTerminalTokenSupported.selector);
+        vm.prank(owner);
+        hook.deployPool(PROJECT_ID, address(secondTerminalToken), 0);
     }
 }

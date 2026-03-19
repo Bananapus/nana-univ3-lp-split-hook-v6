@@ -1,6 +1,6 @@
 # Juicebox UniV4 LP Split Hook
 
-Juicebox split hook that accumulates reserved project tokens over time, then deploys a Uniswap V4 concentrated liquidity position bounded by the project's issuance rate (ceiling) and cash-out rate (floor). After deployment, it manages fee collection, liquidity rebalancing, and routes LP fees back to the project with a configurable fee split.
+Juicebox split hook that accumulates reserved project tokens over time, then deploys a single Uniswap V4 concentrated liquidity position for that project, bounded by the project's issuance rate (ceiling) and cash-out rate (floor). After deployment, it manages fee collection, liquidity rebalancing, and routes LP fees back to the project with a configurable fee split.
 
 [Docs](https://docs.juicebox.money) | [Discord](https://discord.gg/juicebox)
 
@@ -10,7 +10,7 @@ This hook connects Juicebox's reserved token system to Uniswap V4's concentrated
 
 **Stage 1 -- Accumulation:** Configure the hook as a reserved-token split in a project's ruleset. Each time reserved tokens are distributed, the hook accumulates them. This continues across multiple ruleset cycles until enough tokens are collected.
 
-**Stage 2 -- Deployment & Operation:** The project owner calls `deployPool()` to create a V4 pool and mint an LP position. The hook cashes out a geometrically-optimized fraction of the accumulated tokens (typically 15-30%) for terminal tokens, then provides both as concentrated liquidity bounded by the project's economic rates. After deployment, any newly received reserved tokens are burned to prevent LP dilution.
+**Stage 2 -- Deployment & Operation:** The project owner calls `deployPool()` to create a V4 pool and mint an LP position. This permanently selects the project's terminal-token path for this hook instance. The hook cashes out a geometrically-optimized fraction of the accumulated tokens (typically 15-30%) for terminal tokens, then provides both as concentrated liquidity bounded by the project's economic rates. After deployment, any newly received reserved tokens are burned to prevent LP dilution.
 
 The LP position is bounded by two rate-derived ticks:
 - **Lower bound (floor):** The cash-out rate -- what you get from redeeming project tokens via the bonding curve
@@ -153,6 +153,7 @@ script/
 - **Impermanent loss:** The LP position is subject to standard concentrated liquidity IL. If the market price moves outside the [cashOut, issuance] range, the position becomes single-sided.
 - **Stale tick bounds:** If the project's issuance or cash-out rates change significantly (e.g., new ruleset with different weight), the LP position bounds become stale. The project owner must call `rebalanceLiquidity` to update them.
 - **Cash-out price impact:** The initial `deployPool` cashes out a fraction of accumulated tokens, which affects the bonding curve. Large accumulations may create meaningful price impact.
+- **One terminal token per project:** `processSplitWith` does not receive the terminal token, so once any pool is deployed the hook permanently switches the project into burn mode. A second terminal-token pool is intentionally unsupported and `deployPool()` reverts.
 - **One position per pool:** The hook manages a single V4 NFT position per project/terminal-token pair. Rebalancing destroys and recreates it, temporarily leaving no active position.
 - **Fee-project token accumulation:** Fee-project tokens are held by the hook until claimed via `claimFeeTokensFor`. If the fee project token changes or is not deployed, tokens may be stuck.
 - **Rebalance to zero liquidity:** If both token balances are zero when rebalancing, the transaction reverts with `InsufficientLiquidity` to prevent bricking the position (tokenIdOf would become zero while projectDeployed remains true).

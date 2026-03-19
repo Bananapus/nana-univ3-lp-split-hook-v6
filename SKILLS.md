@@ -17,7 +17,7 @@ Juicebox reserved-token split hook that accumulates project tokens, deploys a Un
 
 | Function | What it does |
 |----------|-------------|
-| `processSplitWith(context)` | Called by controller during reserved token distribution. If no pool deployed: accumulates tokens. If pool exists: burns received tokens. Only accepts `groupId == 1` (reserved tokens); reverts on payout splits (`groupId == 0`). |
+| `processSplitWith(context)` | Called by controller during reserved token distribution. If no pool deployed: accumulates tokens. If pool exists: burns received tokens. Only accepts `groupId == 1` (reserved tokens); reverts on payout splits (`groupId == 0`). Because the split context has no terminal token, one deployment permanently switches the project into burn mode. |
 
 ### Pool Deployment
 
@@ -127,7 +127,7 @@ Juicebox reserved-token split hook that accumulates project tokens, deploys a Un
 | `accumulatedProjectTokens` | `projectId => uint256` | Pre-deployment token accumulation |
 | `initialWeightOf` | `projectId => uint256` | Ruleset weight when first tokens were accumulated (for 10x decay check) |
 | `projectDeployed` | `projectId => terminalToken => bool` | Whether a V4 pool has been deployed for this project/token pair |
-| `deployedPoolCount` | `projectId => uint256` | Number of pools deployed for project (used for accumulate vs burn decision in processSplitWith) |
+| `deployedPoolCount` | `projectId => uint256` | Number of pools deployed for project. Intentionally capped at 1 because processSplitWith cannot distinguish terminal-token paths. |
 | `claimableFeeTokens` | `projectId => uint256` | Fee-project tokens claimable via `claimFeeTokensFor` |
 | `initialized` | `bool` | Prevents re-initialization of clone instances |
 | `ORACLE_HOOK` | `IHooks` (immutable) | Oracle hook for all JB V4 pools. Set in constructor. All pools are created with this hook in the `PoolKey.hooks` field, providing TWAP via `observe()`. |

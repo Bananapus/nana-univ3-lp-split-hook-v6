@@ -73,6 +73,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
     error JBUniswapV4LPSplitHook_InvalidTerminalToken();
     error JBUniswapV4LPSplitHook_NoTokensAccumulated();
     error JBUniswapV4LPSplitHook_NotHookSpecifiedInContext();
+    error JBUniswapV4LPSplitHook_OnlyOneTerminalTokenSupported();
     error JBUniswapV4LPSplitHook_Permit2AmountOverflow();
     error JBUniswapV4LPSplitHook_PoolAlreadyDeployed();
     error JBUniswapV4LPSplitHook_SplitSenderNotValidControllerOrTerminal();
@@ -158,9 +159,9 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
     mapping(uint256 projectId => uint256 accumulatedProjectTokens) public accumulatedProjectTokens;
 
     /// @notice ProjectID => Number of deployed pools for this project.
-    /// @dev Monotonic counter by design — pools are never removed, only added. Used by
-    ///      processSplitWith to decide accumulate vs burn, since the split context only
-    ///      provides the project token, not the terminal token.
+    /// @dev This is intentionally capped at 1. `processSplitWith` only receives the project token and cannot tell
+    ///      which terminal token a reserved-token distribution is intended for, so one deployment permanently flips
+    ///      the project from accumulation to burn mode.
     mapping(uint256 projectId => uint256 count) public deployedPoolCount;
 
     /// @notice ProjectID => Fee tokens claimable by that project
@@ -566,6 +567,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         }
 
         if (tokenIdOf[projectId][terminalToken] != 0) revert JBUniswapV4LPSplitHook_PoolAlreadyDeployed();
+        if (deployedPoolCount[projectId] != 0) revert JBUniswapV4LPSplitHook_OnlyOneTerminalTokenSupported();
 
         address projectToken = address(IJBTokens(TOKENS).tokenOf(projectId));
         uint256 projectTokenBalance = accumulatedProjectTokens[projectId];
