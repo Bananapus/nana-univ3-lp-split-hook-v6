@@ -46,7 +46,7 @@ A new `JBUniswapV4LPSplitHook` clone is deployed, initialized, and registered. I
 
 ### Precondition
 
-The project's ruleset has a reserved token split configured with `hook = address(lpSplitHook)`. No pool has been deployed yet (`deployedPoolCount[projectId] == 0`).
+The project's ruleset has a reserved token split configured with `hook = address(lpSplitHook)`. No pool has been deployed yet (`deployedPoolCount[projectId] == 0`). This hook instance supports only one terminal-token deployment per project because the split context does not include the terminal token.
 
 ### Steps
 
@@ -94,14 +94,14 @@ The hook holds project tokens in `accumulatedProjectTokens[projectId]`. The toke
 
 ### Precondition
 
-Tokens have been accumulated (`accumulatedProjectTokens[projectId] > 0`). No pool exists for this project/terminal-token pair.
+Tokens have been accumulated (`accumulatedProjectTokens[projectId] > 0`). No pool exists for this project and no terminal-token path has been committed yet.
 
 ### Steps
 
 1. **Caller invokes `deployPool(projectId, terminalToken, minCashOutReturn)`**
 
    - Permission check: requires `SET_BUYBACK_POOL` from project owner, unless `ruleset.weight * 10 <= initialWeightOf[projectId]`
-   - Checks: `tokenIdOf == 0`, `accumulatedProjectTokens > 0`, `primaryTerminalOf(projectId, terminalToken) != address(0)`
+   - Checks: `tokenIdOf == 0`, `deployedPoolCount == 0`, `accumulatedProjectTokens > 0`, `primaryTerminalOf(projectId, terminalToken) != address(0)`
 
 2. **`_createAndInitializePool()` creates the V4 pool**
 

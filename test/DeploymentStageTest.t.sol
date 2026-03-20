@@ -139,6 +139,20 @@ contract DeploymentStageTest is LPSplitHookV4TestBase {
         hook.deployPool(PROJECT_ID, address(terminalToken), 0);
     }
 
+    /// @notice Once any pool is deployed for a project, a second terminal-token pool is rejected.
+    function test_DeployPool_RevertsIf_SecondTerminalTokenRequested() public {
+        _accumulateAndDeploy(PROJECT_ID, 100e18);
+
+        address secondTerminalToken = makeAddr("secondTerminalToken");
+        _setDirectoryTerminal(PROJECT_ID, secondTerminalToken, address(terminal));
+
+        _accumulateTokens(PROJECT_ID, 50e18);
+
+        vm.expectRevert(JBUniswapV4LPSplitHook.JBUniswapV4LPSplitHook_OnlyOneTerminalTokenSupported.selector);
+        vm.prank(owner);
+        hook.deployPool(PROJECT_ID, secondTerminalToken, 0);
+    }
+
     // ─────────────────────────────────────────────────────────────────────
     // 9. deployPool — reverts if terminal token is invalid
     // ─────────────────────────────────────────────────────────────────────
