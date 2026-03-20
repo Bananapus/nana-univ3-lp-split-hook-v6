@@ -30,7 +30,7 @@ import {JBRuleset} from "@bananapus/core-v6/src/structs/JBRuleset.sol";
 import {JBSplitHookContext} from "@bananapus/core-v6/src/structs/JBSplitHookContext.sol";
 import {JBPermissionIds} from "@bananapus/permission-ids-v6/src/JBPermissionIds.sol";
 
-import {IPermit2} from "@uniswap/permit2/src/interfaces/IPermit2.sol";
+import {IAllowanceTransfer} from "@uniswap/permit2/src/interfaces/IAllowanceTransfer.sol";
 
 import {IJBUniswapV4LPSplitHook} from "./interfaces/IJBUniswapV4LPSplitHook.sol";
 
@@ -126,7 +126,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
     IHooks public immutable ORACLE_HOOK;
 
     /// @notice The Permit2 utility used to approve tokens for PositionManager.
-    IPermit2 public immutable PERMIT2;
+    IAllowanceTransfer public immutable PERMIT2;
 
     /// @notice Uniswap V4 PoolManager address
     IPoolManager public immutable POOL_MANAGER;
@@ -190,7 +190,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         address tokens,
         IPoolManager poolManager,
         IPositionManager positionManager,
-        IPermit2 permit2,
+        IAllowanceTransfer permit2,
         IHooks oracleHook
     )
         JBPermissioned(permissions)
