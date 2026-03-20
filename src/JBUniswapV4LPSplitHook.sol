@@ -30,7 +30,7 @@ import {JBRuleset} from "@bananapus/core-v6/src/structs/JBRuleset.sol";
 import {JBSplitHookContext} from "@bananapus/core-v6/src/structs/JBSplitHookContext.sol";
 import {JBPermissionIds} from "@bananapus/permission-ids-v6/src/JBPermissionIds.sol";
 
-import {IAllowanceTransfer} from "@uniswap/permit2/src/interfaces/IAllowanceTransfer.sol";
+import {IPermit2} from "@uniswap/permit2/src/interfaces/IPermit2.sol";
 
 import {IJBUniswapV4LPSplitHook} from "./interfaces/IJBUniswapV4LPSplitHook.sol";
 
@@ -126,7 +126,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
     IHooks public immutable ORACLE_HOOK;
 
     /// @notice The Permit2 utility used to approve tokens for PositionManager.
-    IAllowanceTransfer public immutable PERMIT2;
+    IPermit2 public immutable PERMIT2;
 
     /// @notice Uniswap V4 PoolManager address
     IPoolManager public immutable POOL_MANAGER;
@@ -190,7 +190,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         address tokens,
         IPoolManager poolManager,
         IPositionManager positionManager,
-        IAllowanceTransfer permit2,
+        IPermit2 permit2,
         IHooks oracleHook
     )
         JBPermissioned(permissions)
@@ -508,7 +508,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
     }
 
     /// @notice Collect LP fees and route them back to the project
-    // slither-disable-next-line reentrancy-events
+    // slither-disable-start reentrancy-events,reentrancy-no-eth
     // forge-lint: disable-next-line(mixed-case-function)
     function collectAndRouteLPFees(uint256 projectId, address terminalToken) external {
         uint256 tokenId = tokenIdOf[projectId][terminalToken];
@@ -548,6 +548,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         // Burn collected project token fees
         _burnReceivedTokens({projectId: projectId, projectToken: projectToken});
     }
+    // slither-disable-end reentrancy-events,reentrancy-no-eth
 
     /// @notice Deploy a Uniswap V4 pool for a project using accumulated tokens
     // slither-disable-next-line reentrancy-benign,reentrancy-events,unused-return
@@ -578,14 +579,16 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
             address(IJBDirectory(DIRECTORY).primaryTerminalOf({projectId: projectId, token: terminalToken}));
         if (terminal == address(0)) revert JBUniswapV4LPSplitHook_InvalidTerminalToken();
 
+        // Flip the project into post-deploy burn mode before any external calls so reentrancy cannot
+        // observe the project as still being in accumulation mode.
+        deployedPoolCount[projectId]++;
+
         _deployPoolAndAddLiquidity({
             projectId: projectId,
             projectToken: projectToken,
             terminalToken: terminalToken,
             minCashOutReturn: minCashOutReturn
         });
-
-        deployedPoolCount[projectId]++;
 
         emit ProjectDeployed(projectId, terminalToken, PoolId.unwrap(_poolKeys[projectId][terminalToken].toId()));
     }
