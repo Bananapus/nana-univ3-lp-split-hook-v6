@@ -508,7 +508,6 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
     }
 
     /// @notice Collect LP fees and route them back to the project
-    // slither-disable-start reentrancy-events,reentrancy-no-eth
     // forge-lint: disable-next-line(mixed-case-function)
     function collectAndRouteLPFees(uint256 projectId, address terminalToken) external {
         uint256 tokenId = tokenIdOf[projectId][terminalToken];
@@ -528,6 +527,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         params[0] = abi.encode(tokenId, uint256(0), uint128(0), uint128(0), "");
         params[1] = abi.encode(key.currency0, key.currency1, address(this));
 
+        // slither-disable-next-line reentrancy-events,reentrancy-no-eth
         POSITION_MANAGER.modifyLiquidities({
             unlockData: abi.encode(actions, params), deadline: block.timestamp + _DEADLINE_SECONDS
         });
@@ -537,6 +537,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         uint256 amount1 = _currencyBalance(key.currency1) - bal1Before;
 
         // Route terminal token fees back to the project
+        // slither-disable-next-line reentrancy-events,reentrancy-no-eth
         _routeCollectedFees({
             projectId: projectId,
             projectToken: projectToken,
@@ -546,9 +547,9 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         });
 
         // Burn collected project token fees
+        // slither-disable-next-line reentrancy-events,reentrancy-no-eth
         _burnReceivedTokens({projectId: projectId, projectToken: projectToken});
     }
-    // slither-disable-end reentrancy-events,reentrancy-no-eth
 
     /// @notice Deploy a Uniswap V4 pool for a project using accumulated tokens
     // slither-disable-next-line reentrancy-benign,reentrancy-events,unused-return
