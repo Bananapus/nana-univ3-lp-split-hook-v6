@@ -653,105 +653,17 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         address projectToken = address(IJBTokens(TOKENS).tokenOf(projectId));
         PoolKey memory key = _poolKeys[projectId][terminalToken];
 
-        // Step 1: Collect accrued fees via DECREASE_LIQUIDITY(0) + TAKE_PAIR
-        {
-            uint256 bal0Before = _currencyBalance(key.currency0);
-            uint256 bal1Before = _currencyBalance(key.currency1);
+        _collectAndRouteFees({
+            projectId: projectId, projectToken: projectToken, terminalToken: terminalToken, tokenId: tokenId, key: key
+        });
 
-            bytes memory feeActions = abi.encodePacked(uint8(Actions.DECREASE_LIQUIDITY), uint8(Actions.TAKE_PAIR));
+        _burnExistingPosition({
+            tokenId: tokenId, key: key, decreaseAmount0Min: decreaseAmount0Min, decreaseAmount1Min: decreaseAmount1Min
+        });
 
-            bytes[] memory feeParams = new bytes[](2);
-            feeParams[0] = abi.encode(tokenId, uint256(0), uint128(0), uint128(0), "");
-            feeParams[1] = abi.encode(key.currency0, key.currency1, address(this));
-
-            POSITION_MANAGER.modifyLiquidities({
-                unlockData: abi.encode(feeActions, feeParams), deadline: block.timestamp + _DEADLINE_SECONDS
-            });
-
-            uint256 feeAmount0 = _currencyBalance(key.currency0) - bal0Before;
-            uint256 feeAmount1 = _currencyBalance(key.currency1) - bal1Before;
-
-            _routeCollectedFees({
-                projectId: projectId,
-                projectToken: projectToken,
-                terminalToken: terminalToken,
-                amount0: feeAmount0,
-                amount1: feeAmount1
-            });
-            _burnReceivedTokens({projectId: projectId, projectToken: projectToken});
-        }
-
-        // Step 2: Burn position to recover principal via BURN_POSITION + TAKE_PAIR
-        {
-            bytes memory burnActions = abi.encodePacked(uint8(Actions.BURN_POSITION), uint8(Actions.TAKE_PAIR));
-
-            bytes[] memory burnParams = new bytes[](2);
-            // Safe: min amounts are user-provided slippage params; PositionManager accepts uint128.
-            // forge-lint: disable-next-line(unsafe-typecast)
-            burnParams[0] = abi.encode(tokenId, uint128(decreaseAmount0Min), uint128(decreaseAmount1Min), "");
-            burnParams[1] = abi.encode(key.currency0, key.currency1, address(this));
-
-            POSITION_MANAGER.modifyLiquidities({
-                unlockData: abi.encode(burnActions, burnParams), deadline: block.timestamp + _DEADLINE_SECONDS
-            });
-        }
-
-        // Step 2: Mint new position with updated tick bounds
-        {
-            uint256 projectTokenBalance = IERC20(projectToken).balanceOf(address(this));
-            uint256 terminalTokenBalance = _getTerminalTokenBalance(terminalToken);
-
-            (int24 tickLower, int24 tickUpper) =
-                _calculateTickBounds({projectId: projectId, terminalToken: terminalToken, projectToken: projectToken});
-
-            // Use the actual pool price for liquidity calculation so the target matches the pool's
-            // current state. Using JB issuance price here would produce suboptimal liquidity when the
-            // pool price has diverged.
-            // slither-disable-next-line unused-return
-            (uint160 sqrtPriceX96,,,) = POOL_MANAGER.getSlot0(key.toId());
-            uint160 sqrtPriceA = TickMath.getSqrtPriceAtTick(tickLower);
-            uint160 sqrtPriceB = TickMath.getSqrtPriceAtTick(tickUpper);
-
-            // Sort amounts by currency order
-            Currency terminalCurrency = _toCurrency(terminalToken);
-            (address token0,) = _sortTokens({tokenA: projectToken, tokenB: Currency.unwrap(terminalCurrency)});
-            uint256 amount0 = projectToken == token0 ? projectTokenBalance : terminalTokenBalance;
-            uint256 amount1 = projectToken == token0 ? terminalTokenBalance : projectTokenBalance;
-
-            // Calculate liquidity from amounts
-            uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts({
-                sqrtPriceX96: sqrtPriceX96,
-                sqrtPriceAX96: sqrtPriceA,
-                sqrtPriceBX96: sqrtPriceB,
-                amount0: amount0,
-                amount1: amount1
-            });
-
-            if (liquidity > 0) {
-                uint256 newTokenId = POSITION_MANAGER.nextTokenId();
-
-                _mintPosition({
-                    key: key,
-                    tickLower: tickLower,
-                    tickUpper: tickUpper,
-                    liquidity: liquidity,
-                    amount0: amount0,
-                    amount1: amount1
-                });
-
-                tokenIdOf[projectId][terminalToken] = newTokenId;
-            } else {
-                // Zero liquidity means the position cannot be re-created (e.g., price moved
-                // outside tick range making the position single-sided with zero on one side).
-                // Revert to prevent bricking the project's LP — the old position was already
-                // burned by the BURN_POSITION action above, so this protects the invariant
-                // that tokenIdOf is always nonzero for deployed projects.
-                revert JBUniswapV4LPSplitHook_InsufficientLiquidity();
-            }
-
-            // Handle leftover tokens
-            _handleLeftoverTokens({projectId: projectId, projectToken: projectToken, terminalToken: terminalToken});
-        }
+        _mintRebalancedPosition({
+            projectId: projectId, projectToken: projectToken, terminalToken: terminalToken, key: key
+        });
     }
 
     //*********************************************************************//
@@ -899,6 +811,28 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         return rounded;
     }
 
+    /// @notice Burn an existing LP position and recover its principal.
+    function _burnExistingPosition(
+        uint256 tokenId,
+        PoolKey memory key,
+        uint256 decreaseAmount0Min,
+        uint256 decreaseAmount1Min
+    )
+        internal
+    {
+        bytes memory burnActions = abi.encodePacked(uint8(Actions.BURN_POSITION), uint8(Actions.TAKE_PAIR));
+
+        bytes[] memory burnParams = new bytes[](2);
+        // Safe: min amounts are user-provided slippage params; PositionManager accepts uint128.
+        // forge-lint: disable-next-line(unsafe-typecast)
+        burnParams[0] = abi.encode(tokenId, uint128(decreaseAmount0Min), uint128(decreaseAmount1Min), "");
+        burnParams[1] = abi.encode(key.currency0, key.currency1, address(this));
+
+        POSITION_MANAGER.modifyLiquidities({
+            unlockData: abi.encode(burnActions, burnParams), deadline: block.timestamp + _DEADLINE_SECONDS
+        });
+    }
+
     /// @notice Burn project tokens using the controller
     // slither-disable-next-line incorrect-equality,reentrancy-events
     function _burnProjectTokens(uint256 projectId, address projectToken, uint256 amount, string memory memo) internal {
@@ -987,6 +921,43 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
             tickLower = currentTick - TICK_SPACING;
             tickUpper = currentTick + TICK_SPACING;
         }
+    }
+
+    /// @notice Collect accrued LP fees and route them to the project.
+    // slither-disable-next-line reentrancy-eth,reentrancy-benign,reentrancy-events
+    function _collectAndRouteFees(
+        uint256 projectId,
+        address projectToken,
+        address terminalToken,
+        uint256 tokenId,
+        PoolKey memory key
+    )
+        internal
+    {
+        uint256 bal0Before = _currencyBalance(key.currency0);
+        uint256 bal1Before = _currencyBalance(key.currency1);
+
+        bytes memory feeActions = abi.encodePacked(uint8(Actions.DECREASE_LIQUIDITY), uint8(Actions.TAKE_PAIR));
+
+        bytes[] memory feeParams = new bytes[](2);
+        feeParams[0] = abi.encode(tokenId, uint256(0), uint128(0), uint128(0), "");
+        feeParams[1] = abi.encode(key.currency0, key.currency1, address(this));
+
+        POSITION_MANAGER.modifyLiquidities({
+            unlockData: abi.encode(feeActions, feeParams), deadline: block.timestamp + _DEADLINE_SECONDS
+        });
+
+        uint256 feeAmount0 = _currencyBalance(key.currency0) - bal0Before;
+        uint256 feeAmount1 = _currencyBalance(key.currency1) - bal1Before;
+
+        _routeCollectedFees({
+            projectId: projectId,
+            projectToken: projectToken,
+            terminalToken: terminalToken,
+            amount0: feeAmount0,
+            amount1: feeAmount1
+        });
+        _burnReceivedTokens({projectId: projectId, projectToken: projectToken});
     }
 
     /// @notice Compute the initial sqrtPriceX96 for pool initialization
@@ -1265,6 +1236,71 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         POSITION_MANAGER.modifyLiquidities{value: ethValue}({
             unlockData: abi.encode(actions, params), deadline: block.timestamp + _DEADLINE_SECONDS
         });
+    }
+
+    /// @notice Mint a new LP position with updated tick bounds after rebalancing.
+    // slither-disable-next-line reentrancy-eth,reentrancy-benign,reentrancy-events
+    function _mintRebalancedPosition(
+        uint256 projectId,
+        address projectToken,
+        address terminalToken,
+        PoolKey memory key
+    )
+        internal
+    {
+        uint256 projectTokenBalance = IERC20(projectToken).balanceOf(address(this));
+        uint256 terminalTokenBalance = _getTerminalTokenBalance(terminalToken);
+
+        (int24 tickLower, int24 tickUpper) =
+            _calculateTickBounds({projectId: projectId, terminalToken: terminalToken, projectToken: projectToken});
+
+        // Use the actual pool price for liquidity calculation so the target matches the pool's
+        // current state. Using JB issuance price here would produce suboptimal liquidity when the
+        // pool price has diverged.
+        // slither-disable-next-line unused-return
+        (uint160 sqrtPriceX96,,,) = POOL_MANAGER.getSlot0(key.toId());
+        uint160 sqrtPriceA = TickMath.getSqrtPriceAtTick(tickLower);
+        uint160 sqrtPriceB = TickMath.getSqrtPriceAtTick(tickUpper);
+
+        // Sort amounts by currency order
+        Currency terminalCurrency = _toCurrency(terminalToken);
+        (address token0,) = _sortTokens({tokenA: projectToken, tokenB: Currency.unwrap(terminalCurrency)});
+        uint256 amount0 = projectToken == token0 ? projectTokenBalance : terminalTokenBalance;
+        uint256 amount1 = projectToken == token0 ? terminalTokenBalance : projectTokenBalance;
+
+        // Calculate liquidity from amounts
+        uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts({
+            sqrtPriceX96: sqrtPriceX96,
+            sqrtPriceAX96: sqrtPriceA,
+            sqrtPriceBX96: sqrtPriceB,
+            amount0: amount0,
+            amount1: amount1
+        });
+
+        if (liquidity > 0) {
+            uint256 newTokenId = POSITION_MANAGER.nextTokenId();
+
+            _mintPosition({
+                key: key,
+                tickLower: tickLower,
+                tickUpper: tickUpper,
+                liquidity: liquidity,
+                amount0: amount0,
+                amount1: amount1
+            });
+
+            tokenIdOf[projectId][terminalToken] = newTokenId;
+        } else {
+            // Zero liquidity means the position cannot be re-created (e.g., price moved
+            // outside tick range making the position single-sided with zero on one side).
+            // Revert to prevent bricking the project's LP — the old position was already
+            // burned by the BURN_POSITION action above, so this protects the invariant
+            // that tokenIdOf is always nonzero for deployed projects.
+            revert JBUniswapV4LPSplitHook_InsufficientLiquidity();
+        }
+
+        // Handle leftover tokens
+        _handleLeftoverTokens({projectId: projectId, projectToken: projectToken, terminalToken: terminalToken});
     }
 
     /// @notice Approve an ERC20 token via Permit2 so PositionManager can pull it during SETTLE.
