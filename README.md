@@ -130,8 +130,14 @@ test/
   IntegrationLifecycle.t.sol                 # Full end-to-end workflow
   Fork.t.sol                                 # Fork tests with real V4 + JB core
   fork/GeomeanLPFork.t.sol                  # Geometric mean pricing fork tests
+  fork/TickBoundsAndFeeFork.t.sol           # Tick bounds and fee fork tests
+  invariant/LPSplitHookInvariant.t.sol      # Invariant/fuzz tests
   TestBaseV4.sol                             # Shared test infrastructure
-  regression/                               # Targeted regression tests
+  regression/
+    FeeProjectIdValidation.t.sol            # Fee project ID validation
+    ReinitAfterRenounce.t.sol               # Re-init after renounce
+    StaleTokenIdOf.t.sol                    # Stale tokenIdOf regression
+    TickBoundsInversion.t.sol               # Tick bounds inversion
 script/
   Deploy.s.sol                               # Sphinx deployment script
 ```
