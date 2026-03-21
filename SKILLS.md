@@ -23,7 +23,7 @@ Juicebox reserved-token split hook that accumulates project tokens, deploys a Un
 
 | Function | What it does |
 |----------|-------------|
-| `deployPool(projectId, terminalToken, amount0Min, amount1Min, minCashOutReturn)` | Requires `SET_BUYBACK_POOL` permission unless the current ruleset's weight has decayed to 1/10th or less of `initialWeightOf[projectId]` (becomes permissionless). Creates V4 pool at geometric mean of [cashOut, issuance] rates. Computes optimal cash-out fraction, cashes out tokens via terminal, mints concentrated LP position, handles leftovers (burns project tokens, adds terminal tokens to project balance). Once a pool exists, a different `terminalToken` for the same project is rejected. |
+| `deployPool(projectId, terminalToken, minCashOutReturn)` | Requires `SET_BUYBACK_POOL` permission unless the current ruleset's weight has decayed to 1/10th or less of `initialWeightOf[projectId]` (becomes permissionless). Creates V4 pool at geometric mean of [cashOut, issuance] rates. Computes optimal cash-out fraction, cashes out tokens via terminal, mints concentrated LP position, handles leftovers (burns project tokens, adds terminal tokens to project balance). Once a pool exists, a different `terminalToken` for the same project is rejected. |
 
 ### Fee Management
 
@@ -175,8 +175,6 @@ IJBUniswapV4LPSplitHook hook = deployer.deployHookFor({
 hook.deployPool({
     projectId: projectId,
     terminalToken: JBConstants.NATIVE_TOKEN,  // ETH
-    amount0Min: 0,                            // slippage (0 = no check)
-    amount1Min: 0,                            // slippage (0 = no check)
     minCashOutReturn: 0                       // 0 = auto 3% tolerance
 });
 
@@ -190,9 +188,7 @@ hook.rebalanceLiquidity({
     projectId: projectId,
     terminalToken: JBConstants.NATIVE_TOKEN,
     decreaseAmount0Min: 0,
-    decreaseAmount1Min: 0,
-    increaseAmount0Min: 0,
-    increaseAmount1Min: 0
+    decreaseAmount1Min: 0
 });
 
 // --- Claim accumulated fee-project tokens (requires permission) ---
