@@ -811,7 +811,13 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         return rounded;
     }
 
-    /// @notice Burn an existing LP position and recover its principal.
+    /// @notice Burn an existing LP position via `BURN_POSITION` + `TAKE_PAIR` and recover its principal.
+    /// @dev Called during rebalancing after fees have already been collected. The recovered tokens remain in
+    /// this contract for the subsequent `_mintRebalancedPosition` call.
+    /// @param tokenId The Uniswap V4 position NFT token ID to burn.
+    /// @param key The pool key identifying the Uniswap V4 pool.
+    /// @param decreaseAmount0Min Minimum amount of token0 to receive (slippage protection).
+    /// @param decreaseAmount1Min Minimum amount of token1 to receive (slippage protection).
     function _burnExistingPosition(
         uint256 tokenId,
         PoolKey memory key,
@@ -820,12 +826,16 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
     )
         internal
     {
+        // BURN_POSITION removes all remaining liquidity and destroys the NFT.
+        // TAKE_PAIR transfers the recovered token0 and token1 to this contract.
         bytes memory burnActions = abi.encodePacked(uint8(Actions.BURN_POSITION), uint8(Actions.TAKE_PAIR));
 
         bytes[] memory burnParams = new bytes[](2);
-        // Safe: min amounts are user-provided slippage params; PositionManager accepts uint128.
+        // BURN_POSITION params: (tokenId, minAmount0, minAmount1, hookData).
+        // Min amounts are caller-supplied slippage bounds; PositionManager accepts uint128.
         // forge-lint: disable-next-line(unsafe-typecast)
         burnParams[0] = abi.encode(tokenId, uint128(decreaseAmount0Min), uint128(decreaseAmount1Min), "");
+        // TAKE_PAIR params: (currency0, currency1, recipient).
         burnParams[1] = abi.encode(key.currency0, key.currency1, address(this));
 
         POSITION_MANAGER.modifyLiquidities({
@@ -923,7 +933,15 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         }
     }
 
-    /// @notice Collect accrued LP fees and route them to the project.
+    /// @notice Collect accrued Uniswap LP trading fees and route them to the project's terminal balance.
+    /// @dev Uses `DECREASE_LIQUIDITY(0)` to trigger fee collection without removing any principal, followed by
+    /// `TAKE_PAIR` to transfer the fees to this contract. Terminal-token fees are added to the project's balance;
+    /// project-token fees are burned to avoid inflating supply.
+    /// @param projectId The ID of the Juicebox project whose LP fees are being collected.
+    /// @param projectToken The project's ERC-20 token address.
+    /// @param terminalToken The terminal token (e.g. ETH or USDC) paired with the project token.
+    /// @param tokenId The Uniswap V4 position NFT token ID to collect fees from.
+    /// @param key The pool key identifying the Uniswap V4 pool.
     // slither-disable-next-line reentrancy-eth,reentrancy-benign,reentrancy-events
     function _collectAndRouteFees(
         uint256 projectId,
@@ -934,22 +952,29 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
     )
         internal
     {
+        // Snapshot balances before collection to isolate fee amounts from any existing balance.
         uint256 bal0Before = _currencyBalance(key.currency0);
         uint256 bal1Before = _currencyBalance(key.currency1);
 
+        // DECREASE_LIQUIDITY with amount=0 triggers fee collection without removing principal.
+        // TAKE_PAIR transfers the collected fees (both currencies) to this contract.
         bytes memory feeActions = abi.encodePacked(uint8(Actions.DECREASE_LIQUIDITY), uint8(Actions.TAKE_PAIR));
 
         bytes[] memory feeParams = new bytes[](2);
+        // DECREASE_LIQUIDITY params: (tokenId, liquidity=0, minAmount0=0, minAmount1=0, hookData).
         feeParams[0] = abi.encode(tokenId, uint256(0), uint128(0), uint128(0), "");
+        // TAKE_PAIR params: (currency0, currency1, recipient).
         feeParams[1] = abi.encode(key.currency0, key.currency1, address(this));
 
         POSITION_MANAGER.modifyLiquidities({
             unlockData: abi.encode(feeActions, feeParams), deadline: block.timestamp + _DEADLINE_SECONDS
         });
 
+        // Diff balances to determine exactly how much was collected as fees.
         uint256 feeAmount0 = _currencyBalance(key.currency0) - bal0Before;
         uint256 feeAmount1 = _currencyBalance(key.currency1) - bal1Before;
 
+        // Route terminal-token fees to the project's balance; project-token fees are burned below.
         _routeCollectedFees({
             projectId: projectId,
             projectToken: projectToken,
@@ -957,6 +982,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
             amount0: feeAmount0,
             amount1: feeAmount1
         });
+        // Burn any project tokens received as fees to avoid inflating circulating supply.
         _burnReceivedTokens({projectId: projectId, projectToken: projectToken});
     }
 
@@ -1238,7 +1264,16 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         });
     }
 
-    /// @notice Mint a new LP position with updated tick bounds after rebalancing.
+    /// @notice Mint a new LP position with tick bounds recalculated from current issuance and cash-out rates.
+    /// @dev Called after `_burnExistingPosition` has recovered the old position's principal. Computes liquidity from
+    /// this contract's current token balances and the pool's live `sqrtPriceX96`. Reverts with
+    /// `JBUniswapV4LPSplitHook_InsufficientLiquidity` if the resulting liquidity is zero (e.g. price moved entirely
+    /// outside the new tick range), preventing `tokenIdOf` from being left stale. Any leftover tokens after minting
+    /// are routed back to the project via `_handleLeftoverTokens`.
+    /// @param projectId The ID of the Juicebox project being rebalanced.
+    /// @param projectToken The project's ERC-20 token address.
+    /// @param terminalToken The terminal token paired with the project token.
+    /// @param key The pool key identifying the Uniswap V4 pool.
     // slither-disable-next-line reentrancy-eth,reentrancy-benign,reentrancy-events
     function _mintRebalancedPosition(
         uint256 projectId,
@@ -1262,13 +1297,13 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
         uint160 sqrtPriceA = TickMath.getSqrtPriceAtTick(tickLower);
         uint160 sqrtPriceB = TickMath.getSqrtPriceAtTick(tickUpper);
 
-        // Sort amounts by currency order
+        // Map token balances to (amount0, amount1) matching the pool's currency ordering.
         Currency terminalCurrency = _toCurrency(terminalToken);
         (address token0,) = _sortTokens({tokenA: projectToken, tokenB: Currency.unwrap(terminalCurrency)});
         uint256 amount0 = projectToken == token0 ? projectTokenBalance : terminalTokenBalance;
         uint256 amount1 = projectToken == token0 ? terminalTokenBalance : projectTokenBalance;
 
-        // Calculate liquidity from amounts
+        // Derive the maximum liquidity mintable from our balances at the current pool price.
         uint128 liquidity = LiquidityAmounts.getLiquidityForAmounts({
             sqrtPriceX96: sqrtPriceX96,
             sqrtPriceAX96: sqrtPriceA,
@@ -1299,7 +1334,7 @@ contract JBUniswapV4LPSplitHook is IJBUniswapV4LPSplitHook, IJBSplitHook, JBPerm
             revert JBUniswapV4LPSplitHook_InsufficientLiquidity();
         }
 
-        // Handle leftover tokens
+        // Return any dust left over after minting (due to rounding or single-sided excess) to the project.
         _handleLeftoverTokens({projectId: projectId, projectToken: projectToken, terminalToken: terminalToken});
     }
 
